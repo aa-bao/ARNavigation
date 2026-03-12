@@ -1,0 +1,69 @@
+# 主配置文件
+spring:
+  profiles:
+    active: dev
+
+  application:
+    name: ar-navigation
+
+---
+# 生产环境配置
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:hospital_ar_db}?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      auto-commit: true
+      pool-name: HikariCP-Prod
+      connection-timeout: 30000
+      validation-timeout: 5000
+      max-lifetime: 1800000
+
+  logging:
+    level:
+      root: WARN
+      com.hospital.arnavigation: INFO
+      org.springframework.web: WARN
+    pattern:
+      console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+      file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file:
+      name: logs/ar-navigation.log
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/*.xml
+  type-aliases-package: com.hospital.arnavigation.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+    cache-enabled: true
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: isActive
+      logic-delete-value: 0
+      logic-not-delete-value: 1
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+navigation:
+  walking-speed: 1.5
+  max-path-distance: 5000
+  path-finding-timeout: 10000

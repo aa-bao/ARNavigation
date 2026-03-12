@@ -1,0 +1,6 @@
+/* XR场景容器样式 */
+.xr-scene-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}

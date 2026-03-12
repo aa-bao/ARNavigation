@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>医院AR导航 - 二维码生成器</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            font-size: 28px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 16px;
+            font-size: 20px;
+            border-left: 4px solid #667eea;
+            padding-left: 12px;
+        }
+        .preset-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .preset-btn {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        .preset-btn:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+            transform: translateY(-2px);
+        }
+        .input-group {
+            margin-top: 16px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            margin-top: 16px;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        .qrcode-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 24px;
+            padding: 24px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+        #qrcode {
+            margin-bottom: 16px;
+        }
+        .qrcode-info {
+            text-align: center;
+        }
+        .qrcode-info p {
+            color: #666;
+            margin: 4px 0;
+            font-size: 14px;
+        }
+        .qrcode-info strong {
+            color: #333;
+            font-size: 16px;
+        }
+        .tips {
+            margin-top: 20px;
+            padding: 16px;
+            background: #fff3e0;
+            border-radius: 8px;
+            border-left: 4px solid #ff9800;
+        }
+        .tips h3 {
+            color: #e65100;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        .tips ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .tips li {
+            color: #666;
+            margin: 4px 0;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏥 医院AR导航系统 - 二维码生成器</h1>
+
+        <!-- 预设节点二维码 -->
+        <div class="card">
+            <h2>📍 快速生成预设节点二维码</h2>
+            <p style="color: #666; margin-bottom: 12px;">点击以下按钮快速生成对应位置的二维码：</p>
+            <div class="preset-grid">
+                <button class="preset-btn" onclick="generatePreset('NODE-001', '医院正门入口')">
+                    🏥 正门入口
+                </button>
+                <button class="preset-btn" onclick="generatePreset('NODE-002', '一楼大厅')">
+                    🏢 一楼大厅
+                </button>
+                <button class="preset-btn" onclick="generatePreset('NODE-003', '一号电梯')">
+                    🛗 一号电梯
+                </button>
+                <button class="preset-btn" onclick="generatePreset('NODE-004', '内科诊室')">
+                    👨‍⚕️ 内科诊室
+                </button>
+                <button class="preset-btn" onclick="generatePreset('NODE-005', '洗手间')">
+                    🚻 洗手间
+                </button>
+                <button class="preset-btn" onclick="generatePreset('NODE-006', '二楼电梯口')">
+                    🛗 二楼电梯口
+                </button>
+                <button class="preset-btn" onclick="generatePreset('NODE-007', '外科诊室')">
+                    👩‍⚕️ 外科诊室
+                </button>
+                <button class="preset-btn" onclick="generatePreset('NODE-008', '药房')">
+                    💊 药房
+                </button>
+            </div>
+        </div>
+
+        <!-- 自定义二维码 -->
+        <div class="card">
+            <h2>✏️ 自定义节点二维码</h2>
+            <div class="input-group">
+                <label for="nodeCode">节点编号（nodeCode）：</label>
+                <input type="text" id="nodeCode" placeholder="例如：NODE-001">
+            </div>
+            <div class="input-group">
+                <label for="nodeName">节点名称：</label>
+                <input type="text" id="nodeName" placeholder="例如：医院正门入口">
+            </div>
+            <button class="btn-primary" onclick="generateCustom()">生成二维码</button>
+        </div>
+
+        <!-- 二维码展示 -->
+        <div class="card" id="resultCard" style="display: none;">
+            <h2>📱 二维码</h2>
+            <div class="qrcode-display">
+                <div id="qrcode"></div>
+                <div class="qrcode-info">
+                    <p>节点编号：<strong id="displayCode"></strong></p>
+                    <p>节点名称：<strong id="displayName"></strong></p>
+                </div>
+            </div>
+            <div class="tips">
+                <h3>💡 使用提示</h3>
+                <ul>
+                    <li>使用微信扫一扫功能扫描上方二维码</li>
+                    <li>或在小程序中点击"扫码定位"按钮扫描</li>
+                    <li>扫码后将自动识别节点位置并设置为当前位置</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentQRCode = null;
+
+        function generatePreset(code, name) {
+            document.getElementById('nodeCode').value = code;
+            document.getElementById('nodeName').value = name;
+            generateQRCode(code, name);
+        }
+
+        function generateCustom() {
+            const code = document.getElementById('nodeCode').value.trim();
+            const name = document.getElementById('nodeName').value.trim();
+
+            if (!code) {
+                alert('请输入节点编号！');
+                return;
+            }
+            if (!name) {
+                alert('请输入节点名称！');
+                return;
+            }
+
+            generateQRCode(code, name);
+        }
+
+        function generateQRCode(code, name) {
+            // 显示结果卡片
+            document.getElementById('resultCard').style.display = 'block';
+
+            // 更新显示信息
+            document.getElementById('displayCode').textContent = code;
+            document.getElementById('displayName').textContent = name;
+
+            // 清除旧的二维码
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = '';
+
+            // 生成新的二维码
+            // 格式：JSON 包含 nodeCode 和 name
+            const qrData = JSON.stringify({
+                nodeCode: code,
+                name: name,
+                type: 'hospital_node'
+            });
+
+            currentQRCode = new QRCode(qrContainer, {
+                text: qrData,
+                width: 200,
+                height: 200,
+                colorDark: '#000000',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M
+            });
+
+            // 滚动到结果区域
+            document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

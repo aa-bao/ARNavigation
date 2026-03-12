@@ -1,0 +1,93 @@
+# 开发环境配置
+server:
+  port: 8080
+  address: 0.0.0.0
+  servlet:
+    context-path: /
+  # 启用gzip压缩
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/plain
+
+spring:
+  application:
+    name: ar-navigation-dev
+
+  # 数据源配置 - 开发环境
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/hospital_ar_db?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+    hikari:
+      minimum-idle: 2
+      maximum-pool-size: 10
+      auto-commit: true
+      pool-name: HikariCP-Dev
+      connection-timeout: 30000
+      validation-timeout: 5000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+
+  # 开发工具配置
+  devtools:
+    restart:
+      enabled: true
+      additional-paths: src/main/java
+      exclude: static/**,public/**
+    livereload:
+      enabled: true
+
+  # 日志级别
+  logging:
+    level:
+      root: INFO
+      com.hospital.arnavigation: DEBUG
+      org.springframework.web: DEBUG
+      org.hibernate.SQL: DEBUG
+      org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    pattern:
+      console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# MyBatis-Plus配置
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/*.xml
+  type-aliases-package: com.hospital.arnavigation.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    cache-enabled: true
+    lazy-loading-enabled: true
+    aggressive-lazy-loading: false
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: isActive
+      logic-delete-value: 0
+      logic-not-delete-value: 1
+    banner: false
+
+# Swagger配置
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+    doc-expansion: none
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+  show-actuator: true
+
+# 自定义配置
+navigation:
+  # 步行速度 (米/秒)
+  walking-speed: 1.5
+  # 最大路径规划距离 (米)
+  max-path-distance: 5000
+  # 路径规划超时时间 (毫秒)
+  path-finding-timeout: 10000

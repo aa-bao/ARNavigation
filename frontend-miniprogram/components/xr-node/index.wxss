@@ -1,0 +1,4 @@
+/* XR节点容器样式 */
+.xr-node-container {
+  display: contents;
+}

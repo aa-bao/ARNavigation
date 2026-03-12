@@ -1,0 +1,46 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/navigation/navigation",
+    "pages/ar/ar",
+    "pages/settings/settings"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#1890ff",
+    "navigationBarTitleText": "医院AR导航",
+    "navigationBarTextStyle": "white"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#1890ff",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页",
+        "iconPath": "images/home.png",
+        "selectedIconPath": "images/home-active.png"
+      },
+      {
+        "pagePath": "pages/settings/settings",
+        "text": "设置",
+        "iconPath": "images/settings.png",
+        "selectedIconPath": "images/settings-active.png"
+      }
+    ]
+  },
+  "permission": {
+    "scope.camera": {
+      "desc": "用于AR导航功能"
+    },
+    "scope.userLocation": {
+      "desc": "用于室内定位和导航"
+    },
+    "scope.userLocationBackground": {
+      "desc": "用于后台定位"
+    }
+  },
+  "sitemapLocation": "sitemap.json"
+}

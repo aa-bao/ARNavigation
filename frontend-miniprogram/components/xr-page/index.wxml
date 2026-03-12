@@ -1,0 +1,22 @@
+<!-- XR页面容器组件 -->
+<view class="xr-page-container" style="width: {{width}}; height: {{height}};">
+  <!-- XR画布 -->
+  <canvas
+    type="webgl"
+    id="{{canvasId}}"
+    class="xr-canvas"
+    bindtouchstart="onTouchStart"
+    bindtouchmove="onTouchMove"
+    bindtouchend="onTouchEnd"
+  />
+
+  <!-- 插槽内容 -->
+  <view class="xr-slot-content">
+    <slot />
+  </view>
+
+  <!-- AR模式UI层 -->
+  <view class="xr-ar-overlay" wx:if="{{isARMode}}">
+    <slot name="ar-overlay" />
+  </view>
+</view>

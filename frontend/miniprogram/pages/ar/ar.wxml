@@ -1,0 +1,109 @@
+<view class="ar-container">
+  <!-- AR相机层 -->
+  <view class="ar-camera-layer">
+    <camera
+      class="ar-camera"
+      device-position="back"
+      flash="off"
+      resolution="high"
+      binderror="onCameraError"
+    />
+  </view>
+
+  <!-- 3D箭头层 - 使用CSS 3D -->
+  <view class="arrow-layer">
+    <view
+      class="direction-arrow {{arrowVisible ? 'visible' : 'hidden'}}"
+      style="transform: rotate({{arrowRotation}}deg) scale({{arrowScale}}); opacity: {{arrowOpacity}};"
+    >
+      <!-- 箭头主体 -->
+      <view class="arrow-body">
+        <!-- 箭头头部 -->
+        <view class="arrow-head"></view>
+        <!-- 箭头尾部 -->
+        <view class="arrow-tail"></view>
+        <!-- 箭头中心发光 -->
+        <view class="arrow-center"></view>
+        <!-- 箭头装饰圈 -->
+        <view class="arrow-ring"></view>
+        <!-- 动态扫描线 -->
+        <view class="arrow-scanner"></view>
+      </view>
+
+      <!-- 脉动效果 -->
+      <view class="arrow-pulse pulse1"></view>
+      <view class="arrow-pulse pulse2"></view>
+    </view>
+  </view>
+
+  <!-- 距离指示器 -->
+  <view class="distance-indicator">
+    <view class="distance-value">
+      <text class="distance-number">{{remainingDistance}}</text>
+      <text class="distance-unit">米</text>
+    </view>
+    <text class="distance-label">剩余距离</text>
+  </view>
+
+  <!-- 方向文字 -->
+  <view class="direction-text-panel">
+    <text class="direction-main">{{directionText}}</text>
+    <text class="instruction-text">{{instruction}}</text>
+  </view>
+
+  <!-- 顶部信息栏 -->
+  <view class="ar-top-bar">
+    <view class="destination-info">
+      <text class="destination-label">前往</text>
+      <text class="destination-name">{{destination ? destination.name : ''}}</text>
+    </view>
+    <view class="nav-stats">
+      <text class="stat-item">{{estimatedTime}}分钟</text>
+      <text class="stat-divider">|</text>
+      <text class="stat-item">{{currentStepIndex + 1}}/{{totalSteps}}</text>
+    </view>
+  </view>
+
+  <!-- 底部控制栏 -->
+  <view class="ar-control-bar">
+    <view class="control-left">
+      <button class="control-btn" bindtap="toggleArrow">
+        <text class="btn-label">{{arrowVisible ? '隐藏' : '显示'}}</text>
+      </button>
+
+      <button class="control-btn" bindtap="toggleVoice">
+        <text class="btn-label">语音</text>
+      </button>
+    </view>
+
+    <view class="control-center">
+      <button class="exit-btn" bindtap="exitARMode">
+        <text class="exit-label">
+          <text>退出</text>
+          <text>导航</text>
+        </text>
+      </button>
+    </view>
+
+    <view class="control-right">
+      <button class="control-btn" bindtap="takePhoto">
+        <text class="btn-label">拍照</text>
+      </button>
+
+      <button class="control-btn" bindtap="showPathMap">
+        <text class="btn-label">地图</text>
+      </button>
+    </view>
+  </view>
+
+  <!-- 到达提示 -->
+  <view class="arrival-modal" wx:if="{{hasArrived}}">
+    <view class="arrival-content">
+      <text class="arrival-title">到达目的地</text>
+      <text class="arrival-message" wx:if="{{destination}}">您已到达 {{destination.name}}</text>
+      <button class="arrival-btn" bindtap="endNavigation">
+        <text>结束导航</text>
+      </button>
+    </view>
+  </view>
+</view>

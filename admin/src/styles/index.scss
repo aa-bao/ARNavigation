@@ -1,0 +1,55 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
+  background-color: #f5f7fa;
+  color: #303133;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+// Element Plus 全局样式覆盖
+.el-card {
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+.el-button {
+  font-weight: 500;
+}
+
+.el-input__wrapper {
+  box-shadow: none;
+}
+
+// 通用布局样式
+.page-container {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.search-form {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+}

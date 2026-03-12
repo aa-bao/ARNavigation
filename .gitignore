@@ -1,0 +1,39 @@
+# 日志文件
+*.log
+logs/
+
+# 依赖
+node_modules/
+*.jar
+*.war
+*.ear
+
+# 编译后的文件
+target/
+build/
+dist/
+*.class
+
+# IDE配置
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+
+# 数据库
+*.db
+*.sqlite
+*.sql
+
+# 临时文件
+*.tmp
+*.temp
+
+# 系统文件
+Thumbs.db
+.DS_Store
+
+# 二维码
+/QR
+

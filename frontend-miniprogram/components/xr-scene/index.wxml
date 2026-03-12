@@ -1,0 +1,4 @@
+<!-- XR场景组件 -->
+<view class="xr-scene-container">
+  <slot />
+</view>
