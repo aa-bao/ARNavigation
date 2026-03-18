@@ -1,39 +1,43 @@
-# 日志文件
+﻿# Logs
 *.log
 logs/
 
-# 依赖
+# Dependencies
 node_modules/
+**/node_modules/
+
+# Build artifacts
+dist/
+build/
+target/
+coverage/
+*.class
+*.tsbuildinfo
+
+# Java packages
 *.jar
 *.war
 *.ear
 
-# 编译后的文件
-target/
-build/
-dist/
-*.class
-
-# IDE配置
+# IDE / editor
 .idea/
 .vscode/
 .claude/
 *.swp
 *.swo
 
-# 数据库
+# Local databases
 *.db
 *.sqlite
-*.sql
 
-# 临时文件
+# Temporary files
 *.tmp
 *.temp
 
-# 系统文件
+# OS files
 Thumbs.db
 .DS_Store
 
-# 二维码
-/QR
-
+# Generated assets
+QR/
+backend/uploads/
