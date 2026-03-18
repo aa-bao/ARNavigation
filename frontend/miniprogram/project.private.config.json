@@ -1,19 +1,7 @@
 {
   "libVersion": "3.14.3",
   "projectname": "miniprogram",
-  "condition": {
-    "miniprogram": {
-      "list": [
-        {
-          "name": "pages/ar/ar",
-          "pathName": "pages/ar/ar",
-          "query": "",
-          "scene": null,
-          "launchMode": "default"
-        }
-      ]
-    }
-  },
+  "condition": {},
   "setting": {
     "urlCheck": false,
     "coverView": true,

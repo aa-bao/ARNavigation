@@ -1,4 +1,0 @@
-<!-- XR相机组件 -->
-<view class="xr-camera-container">
-  <slot />
-</view>

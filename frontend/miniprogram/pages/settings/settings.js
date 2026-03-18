@@ -1,37 +1,29 @@
 // pages/settings/settings.js
-import { clearStorage } from '../../utils/storage.js';
+import { put, uploadFile } from '../../utils/request.js';
 
 const app = getApp();
 
 Page({
   data: {
-    // 用户设置
+    isLoggedIn: false,
     settings: {
       voiceEnabled: true,
       vibrationEnabled: true,
       highAccuracyLocation: true,
       autoStartAR: false,
       darkMode: false,
-      fontSize: 'normal' // small, normal, large
+      fontSize: 'normal'
     },
-
-    // 应用信息
     appInfo: {
       version: '1.0.0',
       buildNumber: '2024031101',
       updateTime: '2024-03-11'
     },
-
-    // 缓存信息
     cacheInfo: {
       size: 0,
       lastClear: null
     },
-
-    // 用户信息
     userInfo: null,
-
-    // 权限状态
     permissions: {
       location: false,
       camera: false,
@@ -39,24 +31,37 @@ Page({
     }
   },
 
-  onLoad(options) {
-    console.log('Settings page loaded');
+  onLoad() {
     this.loadSettings();
-    this.loadUserInfo();
+    this.loadAuthState();
     this.checkPermissions();
     this.calculateCacheSize();
   },
 
-  onShow() {
-    // 页面显示时刷新权限状态
+  async onShow() {
+    this.loadAuthState();
     this.checkPermissions();
   },
 
-  onReady() {
-    // 页面准备完成
+  loadAuthState() {
+    const token = wx.getStorageSync('token');
+    const userInfo = app.globalData.userInfo || wx.getStorageSync('userInfo') || null;
+    const isLoggedIn = !!token;
+    if (userInfo) {
+      app.globalData.userInfo = userInfo;
+    }
+    this.setData({
+      isLoggedIn,
+      userInfo: isLoggedIn ? userInfo : null
+    });
   },
 
-  // 加载设置
+  goToLogin() {
+    wx.navigateTo({
+      url: '/pages/login/login'
+    });
+  },
+
   loadSettings() {
     try {
       const savedSettings = wx.getStorageSync('userSettings');
@@ -70,7 +75,6 @@ Page({
     }
   },
 
-  // 保存设置
   saveSettings() {
     try {
       wx.setStorageSync('userSettings', this.data.settings);
@@ -79,15 +83,43 @@ Page({
     }
   },
 
-  // 加载用户信息
-  loadUserInfo() {
-    const userInfo = app.globalData.userInfo;
-    if (userInfo) {
-      this.setData({ userInfo });
+  async chooseAvatar() {
+    if (!this.data.isLoggedIn) {
+      this.goToLogin();
+      return;
+    }
+
+    try {
+      const chooseResult = await wx.chooseMedia({
+        count: 1,
+        mediaType: ['image'],
+        sourceType: ['album', 'camera'],
+        sizeType: ['compressed']
+      });
+      const filePath = chooseResult.tempFiles?.[0]?.tempFilePath;
+      if (!filePath) return;
+
+      wx.showLoading({ title: '上传中...' });
+      const uploadResult = await uploadFile('/user/avatar', filePath, 'file');
+      const userInfo = await put('/user/profile/avatar', { avatarUrl: uploadResult.avatarUrl });
+      app.globalData.userInfo = userInfo;
+      wx.setStorageSync('userInfo', userInfo);
+      this.setData({ userInfo, isLoggedIn: true });
+      wx.hideLoading();
+      wx.showToast({
+        title: '头像已更新',
+        icon: 'success'
+      });
+    } catch (error) {
+      wx.hideLoading();
+      if (error?.errMsg && error.errMsg.includes('cancel')) return;
+      wx.showToast({
+        title: error?.message || '头像上传失败',
+        icon: 'none'
+      });
     }
   },
 
-  // 检查权限
   checkPermissions() {
     wx.getSetting({
       success: (res) => {
@@ -102,7 +134,6 @@ Page({
     });
   },
 
-  // 计算缓存大小
   calculateCacheSize() {
     wx.getStorageInfo({
       success: (res) => {
@@ -114,7 +145,6 @@ Page({
     });
   },
 
-  // 设置开关切换
   onSettingChange(e) {
     const { field } = e.currentTarget.dataset;
     const value = e.detail.value;
@@ -124,51 +154,42 @@ Page({
     });
 
     this.saveSettings();
-
-    // 应用特定设置
     this.applySetting(field, value);
   },
 
-  // 应用设置
   applySetting(field, value) {
     switch (field) {
       case 'voiceEnabled':
-        // 语音设置已更改
         wx.showToast({
           title: value ? '语音播报已开启' : '语音播报已关闭',
           icon: 'none'
         });
         break;
-
       case 'darkMode':
-        // 暗黑模式设置
         wx.showToast({
           title: '暗黑模式设置已保存',
           icon: 'none'
         });
         break;
-
       case 'fontSize':
-        // 字体大小设置
         wx.showToast({
-          title: '字体大小已更改',
+          title: '字体大小已更新',
           icon: 'none'
         });
+        break;
+      default:
         break;
     }
   },
 
-  // 前往权限设置
   goToPermissionSettings() {
     wx.openSetting({
-      success: (res) => {
-        console.log('Setting opened:', res);
+      success: () => {
         this.checkPermissions();
       }
     });
   },
 
-  // 清除缓存
   clearCache() {
     wx.showModal({
       title: '清除缓存',
@@ -177,18 +198,13 @@ Page({
       success: (res) => {
         if (res.confirm) {
           wx.showLoading({ title: '清除中...' });
-
-          // 清除缓存
           wx.clearStorage({
             success: () => {
-              // 重新加载必要数据
               this.saveSettings();
-
               this.setData({
                 'cacheInfo.size': 0,
                 'cacheInfo.lastClear': Date.now()
               });
-
               wx.hideLoading();
               wx.showToast({
                 title: '缓存已清除',
@@ -208,15 +224,12 @@ Page({
     });
   },
 
-  // 检查更新
   checkUpdate() {
     wx.showLoading({ title: '检查中...' });
-
-    // 模拟检查更新
     setTimeout(() => {
       wx.hideLoading();
       wx.showModal({
-        title: '已是最新版本',
+        title: '已经是最新版本',
         content: `当前版本：${this.data.appInfo.version}\n无需更新`,
         showCancel: false,
         confirmText: '确定'
@@ -224,38 +237,33 @@ Page({
     }, 1500);
   },
 
-  // 关于我们
   aboutUs() {
     wx.showModal({
       title: '关于医院AR导航',
-      content: '版本：' + this.data.appInfo.version + '\n\n医院AR导航系统是专为医院室内导航设计的智能应用，结合AR技术为用户提供直观、精准的导航服务。\n\n© 2024 医院AR导航团队',
+      content: `版本：${this.data.appInfo.version}\n\n医院AR导航系统是专为医院室内导航设计的智能应用，结合AR技术为用户提供直观、精准的导航服务。`,
       showCancel: false,
       confirmText: '知道了'
     });
   },
 
-  // 反馈问题
   feedback() {
     wx.navigateTo({
       url: '/pages/feedback/feedback'
     });
   },
 
-  // 帮助中心
   helpCenter() {
     wx.navigateTo({
       url: '/pages/help/help'
     });
   },
 
-  // 隐私政策
   privacyPolicy() {
     wx.navigateTo({
       url: '/pages/privacy/privacy'
     });
   },
 
-  // 用户协议
   userAgreement() {
     wx.navigateTo({
       url: '/pages/agreement/agreement'

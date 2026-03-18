@@ -1,37 +1,60 @@
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { adminLogin, fetchCurrentUser as fetchCurrentUserApi, requestLogout } from '@/api/user'
+import type { AuthUserInfo, LoginRequest } from '@/types/user'
+import {
+  AUTH_CHANGED_EVENT,
+  clearAuthSession,
+  getStoredToken,
+  getStoredUserInfo,
+  setAuthSession
+} from '@/utils/auth'
 
 export const useUserStore = defineStore('user', () => {
-  // 状态
-  const token = ref<string | null>(localStorage.getItem('token'))
-  const userInfo = ref<any>(null)
-
-  // 计算属性
+  const token = ref<string | null>(getStoredToken())
+  const userInfo = ref<AuthUserInfo | null>(getStoredUserInfo())
   const isLoggedIn = computed(() => !!token.value)
 
-  // 方法
-  const setToken = (newToken: string) => {
-    token.value = newToken
-    localStorage.setItem('token', newToken)
+  const syncAuthState = () => {
+    token.value = getStoredToken()
+    userInfo.value = getStoredUserInfo()
   }
 
-  const setUserInfo = (info: any) => {
-    userInfo.value = info
+  if (typeof window !== 'undefined') {
+    window.addEventListener(AUTH_CHANGED_EVENT, syncAuthState)
   }
 
-  const logout = () => {
-    token.value = null
-    userInfo.value = null
-    localStorage.removeItem('token')
-    localStorage.removeItem('userInfo')
+  const login = async (payload: LoginRequest) => {
+    const response = await adminLogin(payload)
+    setAuthSession(response.token, response.userInfo)
+    syncAuthState()
+    return response
+  }
+
+  const fetchCurrentUser = async () => {
+    const response = await fetchCurrentUserApi()
+    userInfo.value = response
+    if (token.value) {
+      setAuthSession(token.value, response)
+    }
+    return response
+  }
+
+  const logout = async () => {
+    try {
+      await requestLogout()
+    } finally {
+      clearAuthSession()
+      syncAuthState()
+    }
   }
 
   return {
     token,
     userInfo,
     isLoggedIn,
-    setToken,
-    setUserInfo,
+    login,
+    fetchCurrentUser,
     logout
   }
 })

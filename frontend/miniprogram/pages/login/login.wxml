@@ -1,0 +1,15 @@
+<view class="login-page">
+  <view class="login-card">
+    <view class="brand">AR HOSPITAL</view>
+    <view class="title">微信授权登录</view>
+    <view class="desc">登录后可使用院内导航、历史记录与个人设置。</view>
+    <button
+      class="login-btn"
+      bindtap="handleWechatAuthorizeLogin"
+      loading="{{submitting}}"
+      disabled="{{submitting}}"
+    >
+      {{submitting ? '登录中...' : '微信授权登录'}}
+    </button>
+  </view>
+</view>

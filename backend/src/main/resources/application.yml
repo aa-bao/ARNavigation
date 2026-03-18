@@ -67,3 +67,10 @@ navigation:
   walking-speed: 1.5
   max-path-distance: 5000
   path-finding-timeout: 10000
+
+app:
+  upload:
+    avatar-dir: ${AVATAR_UPLOAD_DIR:uploads/avatars}
+  wechat:
+    appid: ${WECHAT_APP_ID:}
+    secret: ${WECHAT_APP_SECRET:}

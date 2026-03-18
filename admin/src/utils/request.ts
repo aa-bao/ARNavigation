@@ -1,77 +1,76 @@
 import axios from 'axios'
-import router from '../router'
+import type { AxiosError } from 'axios'
+import router from '@/router'
+import { clearAuthSession, getStoredToken } from './auth'
 
-// 创建axios实例
 const request = axios.create({
   baseURL: 'http://localhost:8080/api',
   timeout: 10000
 })
 
-// 请求拦截器
-request.interceptors.request.use(
-  config => {
-    // 从localStorage获取token并添加到header
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  error => {
-    return Promise.reject(error)
-  }
-)
+export const API_BASE_URL = 'http://localhost:8080/api'
+export const API_ORIGIN = new URL(API_BASE_URL).origin
 
-// 响应拦截器
+export const getErrorMessage = (
+  error: unknown,
+  fallback = '请求失败，请稍后重试'
+): string => {
+  const axiosError = error as AxiosError<{ message?: string; data?: Record<string, string> }>
+  const responseData = axiosError.response?.data
+
+  if (responseData?.message) {
+    return responseData.message
+  }
+
+  if (responseData?.data) {
+    const firstMessage = Object.values(responseData.data)[0]
+    if (firstMessage) {
+      return firstMessage
+    }
+  }
+
+  return axiosError.message || fallback
+}
+
+request.interceptors.request.use(config => {
+  const token = getStoredToken()
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
 request.interceptors.response.use(
-  response => {
-    return response.data
-  },
+  response => response.data,
   error => {
-    // 统一错误处理
-    if (error.response) {
-      switch (error.response.status) {
-        case 401:
-          // token过期时跳转登录页
-          localStorage.removeItem('token')
-          router.push('/login')
-          break
-        case 403:
-          console.error('拒绝访问')
-          break
-        case 404:
-          console.error('请求地址不存在')
-          break
-        case 500:
-          console.error('服务器内部错误')
-          break
-        default:
-          console.error('请求失败:', error.response.data)
+    if (error.response?.status === 401) {
+      clearAuthSession()
+      if (router.currentRoute.value.path !== '/login') {
+        void router.push('/login')
       }
-    } else if (error.request) {
-      console.error('请求没有收到响应')
-    } else {
-      console.error('请求配置失败:', error.message)
     }
     return Promise.reject(error)
   }
 )
 
-// 导出常用请求方法
-export const get = (url: string, params?: any) => {
-  return request.get(url, { params })
-}
+export const get = (url: string, params?: unknown) => request.get(url, { params })
+export const post = (url: string, data?: unknown) => request.post(url, data)
+export const put = (url: string, data?: unknown) => request.put(url, data)
+export const upload = (url: string, data: FormData) => request.post(url, data)
+export const del = (url: string) => request.delete(url)
 
-export const post = (url: string, data?: any) => {
-  return request.post(url, data)
-}
+export const resolveAssetUrl = (value?: string | null, version?: string | number): string => {
+  if (!value) return ''
+  const rawUrl = /^https?:\/\//i.test(value)
+    ? value
+    : `${API_ORIGIN}${value.startsWith('/') ? value : `/${value}`}`
 
-export const put = (url: string, data?: any) => {
-  return request.put(url, data)
-}
+  if (version === undefined || version === null || version === '') {
+    return rawUrl
+  }
 
-export const del = (url: string) => {
-  return request.delete(url)
+  const separator = rawUrl.includes('?') ? '&' : '?'
+  return `${rawUrl}${separator}v=${encodeURIComponent(String(version))}`
 }
 
 export default request

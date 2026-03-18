@@ -1,4 +1,0 @@
-/* XR光源容器样式 */
-.xr-light-container {
-  display: contents;
-}

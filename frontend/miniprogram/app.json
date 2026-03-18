@@ -3,7 +3,8 @@
     "pages/index/index",
     "pages/navigation/navigation",
     "pages/ar/ar",
-    "pages/settings/settings"
+    "pages/settings/settings",
+    "pages/login/login"
   ],
   "window": {
     "backgroundTextStyle": "light",
@@ -25,7 +26,7 @@
       },
       {
         "pagePath": "pages/settings/settings",
-        "text": "设置",
+        "text": "我的",
         "iconPath": "images/settings.png",
         "selectedIconPath": "images/settings-active.png"
       }

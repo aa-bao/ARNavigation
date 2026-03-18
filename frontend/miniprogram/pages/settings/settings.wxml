@@ -1,18 +1,21 @@
-<!--pages/settings/settings.wxml-->
 <view class="container settings-container">
-  <!-- 用户信息卡片 -->
-  <view class="user-card" wx:if="{{userInfo}}">
-    <image class="user-avatar" src="{{userInfo.avatarUrl}}" mode="aspectFill"></image>
-    <view class="user-info">
-      <text class="user-name">{{userInfo.nickName}}</text>
-      <text class="user-id">ID: {{userInfo.id || '未知'}}</text>
-    </view>
+  <view class="login-entry-card" wx:if="{{!isLoggedIn}}">
+    <view class="login-entry-title">登录后可同步你的导航记录</view>
+    <view class="login-entry-desc">使用微信授权登录，不需要账号密码。</view>
+    <button class="login-entry-btn" bindtap="goToLogin">微信授权登录</button>
   </view>
 
-  <!-- 功能设置 -->
+  <view class="user-card" wx:if="{{isLoggedIn && userInfo}}">
+    <image class="user-avatar" src="{{userInfo.avatarUrl}}" mode="aspectFill"></image>
+    <view class="user-info">
+      <text class="user-name">{{userInfo.nickName || userInfo.nickname}}</text>
+      <text class="user-id">ID: {{userInfo.id || '未知'}}</text>
+    </view>
+    <button class="avatar-upload-btn" bindtap="chooseAvatar">修改头像</button>
+  </view>
+
   <view class="settings-group">
     <view class="group-title">功能设置</view>
-
     <view class="settings-list">
       <view class="setting-item">
         <view class="item-left">
@@ -22,12 +25,7 @@
             <text class="item-desc">导航时播报语音指令</text>
           </view>
         </view>
-        <switch
-          class="item-switch"
-          checked="{{settings.voiceEnabled}}"
-          data-field="voiceEnabled"
-          bindchange="onSettingChange"
-        />
+        <switch class="item-switch" checked="{{settings.voiceEnabled}}" data-field="voiceEnabled" bindchange="onSettingChange" />
       </view>
 
       <view class="setting-item">
@@ -38,12 +36,7 @@
             <text class="item-desc">导航时提供震动提示</text>
           </view>
         </view>
-        <switch
-          class="item-switch"
-          checked="{{settings.vibrationEnabled}}"
-          data-field="vibrationEnabled"
-          bindchange="onSettingChange"
-        />
+        <switch class="item-switch" checked="{{settings.vibrationEnabled}}" data-field="vibrationEnabled" bindchange="onSettingChange" />
       </view>
 
       <view class="setting-item">
@@ -54,12 +47,7 @@
             <text class="item-desc">使用GPS和网络提高精度</text>
           </view>
         </view>
-        <switch
-          class="item-switch"
-          checked="{{settings.highAccuracyLocation}}"
-          data-field="highAccuracyLocation"
-          bindchange="onSettingChange"
-        />
+        <switch class="item-switch" checked="{{settings.highAccuracyLocation}}" data-field="highAccuracyLocation" bindchange="onSettingChange" />
       </view>
 
       <view class="setting-item">
@@ -70,20 +58,13 @@
             <text class="item-desc">导航时自动进入AR模式</text>
           </view>
         </view>
-        <switch
-          class="item-switch"
-          checked="{{settings.autoStartAR}}"
-          data-field="autoStartAR"
-          bindchange="onSettingChange"
-        />
+        <switch class="item-switch" checked="{{settings.autoStartAR}}" data-field="autoStartAR" bindchange="onSettingChange" />
       </view>
     </view>
   </view>
 
-  <!-- 权限管理 -->
   <view class="settings-group">
     <view class="group-title">权限管理</view>
-
     <view class="settings-list">
       <view class="setting-item" bindtap="goToPermissionSettings">
         <view class="item-left">
@@ -98,10 +79,8 @@
     </view>
   </view>
 
-  <!-- 其他设置 -->
   <view class="settings-group">
     <view class="group-title">其他</view>
-
     <view class="settings-list">
       <view class="setting-item" bindtap="clearCache">
         <view class="item-left">
@@ -138,6 +117,5 @@
     </view>
   </view>
 
-  <!-- 底部安全区域 -->
   <view class="safe-area-bottom"></view>
 </view>

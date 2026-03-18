@@ -1,122 +1,137 @@
 <template>
-  <div class="qr-batch-container">
-    <el-card class="page-header">
+  <div class="page-shell">
+    <section class="page-hero">
+      <div>
+        <p class="hero-kicker">QR Asset Output</p>
+        <h1>二维码批量生成</h1>
+        <p class="hero-text">集中生成导航节点二维码，用于院内导引张贴与快速分发。</p>
+      </div>
+      <div class="hero-summary">
+        <span>已选节点 {{ selectedNodes.length }}</span>
+        <span class="summary-divider"></span>
+        <span>已生成 {{ qrResults.length }}</span>
+      </div>
+    </section>
+
+    <el-card class="panel-card actions-card" shadow="never">
       <template #header>
-        <div class="header-content">
-          <h2>批量二维码生成</h2>
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">Batch Actions</p>
+            <h2>批量操作</h2>
+          </div>
         </div>
       </template>
-    </el-card>
 
-    <el-card class="batch-actions">
       <div class="actions-container">
         <el-button type="primary" @click="selectAllNodes">
           <el-icon><Select /></el-icon>
-          全选
+          全选当前页
         </el-button>
         <el-button @click="clearSelection">
           <el-icon><Close /></el-icon>
-          取消选择
+          清空选择
         </el-button>
-        <el-button
-          type="success"
-          :disabled="selectedNodes.length === 0"
-          @click="batchGenerateQRCodes"
-        >
+        <el-button type="success" :disabled="selectedNodes.length === 0" @click="batchGenerateQRCodes">
           <el-icon><DocumentCopy /></el-icon>
           批量生成
         </el-button>
-        <el-button
-          type="warning"
-          :disabled="selectedNodes.length === 0"
-          @click="batchDownloadQRCodes"
-        >
+        <el-button type="warning" :disabled="selectedNodes.length === 0" @click="batchDownloadQRCodes">
           <el-icon><Download /></el-icon>
           批量下载
         </el-button>
       </div>
     </el-card>
 
-    <el-card class="nodes-table">
+    <el-card class="panel-card table-card" shadow="never">
+      <template #header>
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">Node Selection</p>
+            <h2>节点列表</h2>
+          </div>
+          <span class="header-summary">从当前节点资料中选择需要生成二维码的条目。</span>
+        </div>
+      </template>
+
       <el-table
+        ref="tableRef"
         :data="tableData"
-        v-model:selection="selectedNodes"
         style="width: 100%"
-        border
-        stripe
         v-loading="loading"
+        @selection-change="handleSelectionChange"
       >
-        <el-table-column type="selection" width="55"></el-table-column>
-        <el-table-column prop="id" label="节点ID" width="80"></el-table-column>
-        <el-table-column prop="nodeCode" label="节点编码" min-width="120">
-          <template #default="scope">
-            <span class="code-text">{{ scope.row.nodeCode }}</span>
+        <el-table-column type="selection" width="55" />
+        <el-table-column prop="id" label="节点 ID" width="92" />
+        <el-table-column prop="nodeCode" label="节点编码" min-width="140">
+          <template #default="{ row }">
+            <span class="code-text">{{ row.nodeCode }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="nodeName" label="节点名称" min-width="150">
-          <template #default="scope">
-            <span class="name-text">{{ scope.row.nodeName }}</span>
+        <el-table-column prop="nodeName" label="节点名称" min-width="160" />
+        <el-table-column prop="floor" label="楼层" width="100">
+          <template #default="{ row }">
+            <el-tag effect="plain">{{ row.floor }} 楼</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="floor" label="楼层" width="80">
-          <template #default="scope">
-            {{ scope.row.floor }}楼
-          </template>
-        </el-table-column>
-        <el-table-column prop="nodeType" label="节点类型" width="120">
-          <template #default="scope">
-            <el-tag :type="getNodeTypeTagType(scope.row.nodeType)">
-              {{ getNodeTypeLabel(scope.row.nodeType) }}
+        <el-table-column prop="nodeType" label="节点类型" width="130">
+          <template #default="{ row }">
+            <el-tag :type="getNodeTypeTagType(row.nodeType)" effect="plain">
+              {{ getNodeTypeLabel(row.nodeType) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
-          <template #default="scope">
-            <el-button type="primary" size="small" @click="generateSingleQRCode(scope.row)">
-              生成二维码
-            </el-button>
+        <el-table-column label="操作" width="140" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="generateSingleQRCode(row)">生成二维码</el-button>
           </template>
         </el-table-column>
       </el-table>
 
-      <el-pagination
-        v-model:current-page="pagination.currentPage"
-        v-model:page-size="pagination.pageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="pagination.total"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-model:current-page="pagination.currentPage"
+          v-model:page-size="pagination.pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="pagination.total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
     </el-card>
 
-    <el-card class="qr-results" v-if="qrResults.length > 0">
+    <el-card v-if="qrResults.length > 0" class="panel-card results-card" shadow="never">
       <template #header>
-        <div class="header-content">
-          <h3>生成结果</h3>
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">Generated Assets</p>
+            <h2>生成结果</h2>
+          </div>
           <el-button type="primary" @click="downloadAllQRCodes">
             <el-icon><Download /></el-icon>
-            全部下载
+            下载全部
           </el-button>
         </div>
       </template>
+
       <div class="qr-results-grid">
-        <div class="qr-result-item" v-for="result in qrResults" :key="result.nodeCode">
+        <div v-for="result in qrResults" :key="result.nodeCode" class="qr-result-item">
           <div class="qr-preview-wrapper">
-            <img :src="result.qrDataUrl" class="qr-preview-image" alt="QR Code">
+            <img :src="result.qrDataUrl" class="qr-preview-image" alt="二维码预览">
           </div>
           <div class="qr-result-info">
             <div class="result-info-item">
-              <span class="result-label">节点编码:</span>
+              <span class="result-label">节点编码</span>
               <span class="result-value">{{ result.nodeCode }}</span>
             </div>
             <div class="result-info-item">
-              <span class="result-label">节点名称:</span>
+              <span class="result-label">节点名称</span>
               <span class="result-value">{{ result.nodeName }}</span>
             </div>
           </div>
           <div class="qr-result-actions">
-            <el-button type="primary" size="small" @click="downloadSingleQRCode(result)">
+            <el-button type="primary" @click="downloadSingleQRCode(result)">
               <el-icon><Download /></el-icon>
               下载
             </el-button>
@@ -128,14 +143,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import QRCode from 'qrcode'
-import { Select, Close, DocumentCopy, Download } from '@element-plus/icons-vue'
+import { Close, DocumentCopy, Download, Select } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import type { TableInstance } from 'element-plus'
 import type { HospitalNode } from '@/api/location'
 import { NodeType } from '@/api/location'
 
-// 节点类型列表
 const nodeTypeList = [
   { value: NodeType.ENTRANCE, label: '入口' },
   { value: NodeType.NORMAL, label: '普通节点' },
@@ -150,42 +165,32 @@ const nodeTypeList = [
   { value: NodeType.BEDROOM, label: '病房' }
 ]
 
-// 表格数据
 const mockLocationList = ref<HospitalNode[]>([])
-
-// 状态
 const loading = ref(false)
 const nodes = ref<HospitalNode[]>([])
 const selectedNodes = ref<HospitalNode[]>([])
-const qrResults = ref<{
-  nodeCode: string
-  nodeName: string
-  qrDataUrl: string
-}[]>([])
+const qrResults = ref<{ nodeCode: string; nodeName: string; qrDataUrl: string }[]>([])
+const tableRef = ref<TableInstance>()
 
-// 分页
 const pagination = ref({
   currentPage: 1,
   pageSize: 10,
   total: 0
 })
 
-// 表格数据（分页）
 const tableData = computed(() => {
   const start = (pagination.value.currentPage - 1) * pagination.value.pageSize
   const end = start + pagination.value.pageSize
   return nodes.value.slice(start, end)
 })
 
-// 获取节点类型标签
 const getNodeTypeLabel = (type: string) => {
-  const found = nodeTypeList.find(t => t.value === type)
+  const found = nodeTypeList.find(item => item.value === type)
   return found ? found.label : type
 }
 
-// 获取节点类型标签颜色
 const getNodeTypeTagType = (type: string) => {
-  const tagTypes: Record<string, any> = {
+  const tagTypes: Record<string, '' | 'success' | 'info' | 'warning' | 'danger' | 'primary'> = {
     [NodeType.ENTRANCE]: 'success',
     [NodeType.NORMAL]: 'info',
     [NodeType.ELEVATOR]: 'warning',
@@ -201,21 +206,20 @@ const getNodeTypeTagType = (type: string) => {
   return tagTypes[type] || ''
 }
 
-// 初始化模拟数据
 const initMockData = () => {
   const types = Object.values(NodeType)
-  const names = ['大厅', '挂号处', '内科诊室', '外科诊室', '药房', '卫生间', '电梯间', '楼梯间', '入口', '护士站', '检查室', '病房']
+  const names = ['大厅', '挂号大厅', '内科诊室', '外科诊室', '药房', '卫生间', '电梯间', '楼梯间', '入口', '护士站', '检查室', '病房']
 
-  for (let i = 1; i <= 30; i++) {
+  for (let i = 1; i <= 30; i += 1) {
     mockLocationList.value.push({
       id: i,
       nodeCode: `NODE${String(i).padStart(3, '0')}`,
-      nodeName: `${names[i % names.length]}${i}`,
+      nodeName: `${names[i % names.length]} ${i}`,
       floor: Math.floor(Math.random() * 5) + 1,
       xCoordinate: Math.round(Math.random() * 1000) / 10,
       yCoordinate: Math.round(Math.random() * 1000) / 10,
       nodeType: types[i % types.length],
-      description: `这是${names[i % names.length]}${i}的详细描述信息`,
+      description: `这是 ${names[i % names.length]} ${i} 的节点资料。`,
       createdAt: '2024-01-01 10:00:00',
       updatedAt: '2024-01-01 10:00:00'
     })
@@ -225,52 +229,55 @@ const initMockData = () => {
   pagination.value.total = nodes.value.length
 }
 
-// 全选
-const selectAllNodes = () => {
-  selectedNodes.value = [...nodes.value]
+const handleSelectionChange = (rows: HospitalNode[]) => {
+  selectedNodes.value = rows
 }
 
-// 取消选择
+const selectAllNodes = async () => {
+  await nextTick()
+  tableRef.value?.clearSelection()
+  tableData.value.forEach(row => tableRef.value?.toggleRowSelection(row, true))
+}
+
 const clearSelection = () => {
+  tableRef.value?.clearSelection()
   selectedNodes.value = []
 }
 
-// 生成单个二维码
+const upsertResult = (result: { nodeCode: string; nodeName: string; qrDataUrl: string }) => {
+  const index = qrResults.value.findIndex(item => item.nodeCode === result.nodeCode)
+  if (index >= 0) {
+    qrResults.value[index] = result
+  } else {
+    qrResults.value.push(result)
+  }
+}
+
+const createQrDataUrl = async (node: HospitalNode) => {
+  const qrContent = JSON.stringify({
+    nodeCode: node.nodeCode,
+    name: node.nodeName,
+    type: 'hospital_node'
+  })
+
+  const canvas = document.createElement('canvas')
+  await QRCode.toCanvas(canvas, qrContent, {
+    width: 220,
+    margin: 2
+  })
+
+  return canvas.toDataURL('image/png')
+}
+
 const generateSingleQRCode = async (node: HospitalNode) => {
   loading.value = true
   try {
-    const qrContent = JSON.stringify({
+    const qrDataUrl = await createQrDataUrl(node)
+    upsertResult({
       nodeCode: node.nodeCode,
-      name: node.nodeName,
-      type: 'hospital_node'
+      nodeName: node.nodeName,
+      qrDataUrl
     })
-
-    const canvas = document.createElement('canvas')
-    canvas.width = 200
-    canvas.height = 200
-    await QRCode.toCanvas(canvas, qrContent, {
-      width: 200,
-      height: 200,
-      margin: 2
-    })
-
-    const existingIndex = qrResults.value.findIndex(item => item.nodeCode === node.nodeCode)
-    const qrDataUrl = canvas.toDataURL('image/png')
-
-    if (existingIndex !== -1) {
-      qrResults.value[existingIndex] = {
-        nodeCode: node.nodeCode,
-        nodeName: node.nodeName,
-        qrDataUrl
-      }
-    } else {
-      qrResults.value.push({
-        nodeCode: node.nodeCode,
-        nodeName: node.nodeName,
-        qrDataUrl
-      })
-    }
-
     ElMessage.success('二维码生成成功')
   } catch (error) {
     console.error('二维码生成失败:', error)
@@ -280,61 +287,33 @@ const generateSingleQRCode = async (node: HospitalNode) => {
   }
 }
 
-// 批量生成二维码
 const batchGenerateQRCodes = async () => {
   if (selectedNodes.value.length === 0) {
-    ElMessage.warning('请先选择要生成二维码的地点')
+    ElMessage.warning('请先选择要生成二维码的节点')
     return
   }
 
   loading.value = true
   try {
-    const generatePromises = selectedNodes.value.map(async (node) => {
-      const qrContent = JSON.stringify({
-        nodeCode: node.nodeCode,
-        name: node.nodeName,
-        type: 'hospital_node'
-      })
-
-      const canvas = document.createElement('canvas')
-      canvas.width = 200
-      canvas.height = 200
-      await QRCode.toCanvas(canvas, qrContent, {
-        width: 200,
-        height: 200,
-        margin: 2
-      })
-
-      return {
+    const results = await Promise.all(
+      selectedNodes.value.map(async node => ({
         nodeCode: node.nodeCode,
         nodeName: node.nodeName,
-        qrDataUrl: canvas.toDataURL('image/png')
-      }
-    })
+        qrDataUrl: await createQrDataUrl(node)
+      }))
+    )
 
-    const results = await Promise.all(generatePromises)
-
-    // 更新结果列表，避免重复
-    results.forEach(result => {
-      const existingIndex = qrResults.value.findIndex(item => item.nodeCode === result.nodeCode)
-      if (existingIndex !== -1) {
-        qrResults.value[existingIndex] = result
-      } else {
-        qrResults.value.push(result)
-      }
-    })
-
-    ElMessage.success(`成功生成 ${results.length} 个二维码`)
+    results.forEach(upsertResult)
+    ElMessage.success(`已生成 ${results.length} 个二维码`)
   } catch (error) {
     console.error('批量生成二维码失败:', error)
-    ElMessage.error('二维码生成失败')
+    ElMessage.error('批量生成二维码失败')
   } finally {
     loading.value = false
   }
 }
 
-// 下载单个二维码
-const downloadSingleQRCode = (result: any) => {
+const downloadSingleQRCode = (result: { nodeCode: string; nodeName: string; qrDataUrl: string }) => {
   const link = document.createElement('a')
   link.download = `${result.nodeCode}_${result.nodeName}_qrcode.png`
   link.href = result.qrDataUrl
@@ -342,68 +321,46 @@ const downloadSingleQRCode = (result: any) => {
   ElMessage.success('下载成功')
 }
 
-// 批量下载二维码
 const batchDownloadQRCodes = async () => {
   if (selectedNodes.value.length === 0) {
-    ElMessage.warning('请先选择要下载的地点')
+    ElMessage.warning('请先选择要下载的节点')
     return
   }
 
   loading.value = true
   try {
     for (const node of selectedNodes.value) {
-      const qrContent = JSON.stringify({
+      const qrDataUrl = await createQrDataUrl(node)
+      downloadSingleQRCode({
         nodeCode: node.nodeCode,
-        name: node.nodeName,
-        type: 'hospital_node'
+        nodeName: node.nodeName,
+        qrDataUrl
       })
-
-      const canvas = document.createElement('canvas')
-      canvas.width = 200
-      canvas.height = 200
-      await QRCode.toCanvas(canvas, qrContent, {
-        width: 200,
-        height: 200,
-        margin: 2
-      })
-
-      const link = document.createElement('a')
-      link.download = `${node.nodeCode}_${node.nodeName}_qrcode.png`
-      link.href = canvas.toDataURL('image/png')
-      link.click()
-      await new Promise(resolve => setTimeout(resolve, 200))
+      await new Promise(resolve => setTimeout(resolve, 180))
     }
-
-    ElMessage.success(`成功下载 ${selectedNodes.value.length} 个二维码`)
   } catch (error) {
     console.error('批量下载失败:', error)
-    ElMessage.error('下载失败')
+    ElMessage.error('批量下载失败')
   } finally {
     loading.value = false
   }
 }
 
-// 全部下载
 const downloadAllQRCodes = async () => {
   if (qrResults.value.length === 0) {
-    ElMessage.warning('暂无二维码可下载')
+    ElMessage.warning('当前没有可下载的二维码')
     return
   }
 
   loading.value = true
   try {
     for (const result of qrResults.value) {
-      const link = document.createElement('a')
-      link.download = `${result.nodeCode}_${result.nodeName}_qrcode.png`
-      link.href = result.qrDataUrl
-      link.click()
-      await new Promise(resolve => setTimeout(resolve, 200))
+      downloadSingleQRCode(result)
+      await new Promise(resolve => setTimeout(resolve, 180))
     }
-
-    ElMessage.success(`成功下载 ${qrResults.value.length} 个二维码`)
   } catch (error) {
-    console.error('全部下载失败:', error)
-    ElMessage.error('下载失败')
+    console.error('下载全部二维码失败:', error)
+    ElMessage.error('下载全部二维码失败')
   } finally {
     loading.value = false
   }
@@ -412,10 +369,12 @@ const downloadAllQRCodes = async () => {
 const handleSizeChange = (size: number) => {
   pagination.value.pageSize = size
   pagination.value.currentPage = 1
+  clearSelection()
 }
 
 const handleCurrentChange = (page: number) => {
   pagination.value.currentPage = page
+  clearSelection()
 }
 
 onMounted(() => {
@@ -424,104 +383,152 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.qr-batch-container {
-  min-height: 100vh;
-  background-color: #f5f7fa;
-  padding: 20px;
+.page-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.page-header {
-  margin-bottom: 20px;
-}
-
-.header-content {
+.page-hero {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
+  gap: 20px;
+  padding: 12px 4px 4px;
 }
 
-.header-content h2 {
+.hero-kicker,
+.panel-kicker {
   margin: 0;
-  color: #303133;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #2f6f9f;
 }
 
-.batch-actions {
-  margin-bottom: 20px;
+.page-hero h1,
+.panel-header h2 {
+  margin: 10px 0 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-weight: 600;
+  color: #1f2a33;
+}
+
+.page-hero h1 {
+  font-size: 42px;
+}
+
+.hero-text {
+  margin: 14px 0 0;
+  color: #66737d;
+  line-height: 1.8;
+}
+
+.hero-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #66737d;
+  font-size: 13px;
+}
+
+.summary-divider {
+  width: 42px;
+  height: 1px;
+  background: rgba(91, 109, 122, 0.18);
+}
+
+.panel-card {
+  border: 1px solid rgba(91, 109, 122, 0.14);
+  background: rgba(255, 252, 247, 0.92);
+}
+
+:deep(.panel-card .el-card__header) {
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(91, 109, 122, 0.12);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+:deep(.panel-card .el-card__body) {
+  padding: 24px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.header-summary {
+  color: #697680;
+  font-size: 13px;
 }
 
 .actions-container {
   display: flex;
-  gap: 10px;
   flex-wrap: wrap;
-  justify-content: center;
+  gap: 12px;
 }
 
-.nodes-table {
-  margin-bottom: 20px;
+:deep(.el-button) {
+  border-radius: 0;
 }
 
-:deep(.el-table) {
-  background-color: white;
+:deep(.table-card .el-table) {
+  --el-table-header-bg-color: rgba(47, 111, 159, 0.05);
+  --el-table-row-hover-bg-color: rgba(47, 111, 159, 0.04);
+  background: transparent;
 }
 
 .code-text {
-  color: #409eff;
-  font-weight: 500;
+  color: #204d70;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
-.name-text {
-  color: #303133;
-  font-weight: 500;
-}
-
-:deep(.el-pagination) {
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
   margin-top: 20px;
-  text-align: right;
-}
-
-.qr-results {
-  margin-top: 30px;
 }
 
 .qr-results-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 20px;
-  margin-top: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 18px;
 }
 
 .qr-result-item {
-  background: #fff;
-  border: 1px solid #e8e8e8;
-  border-radius: 8px;
   padding: 20px;
-  text-align: center;
+  border: 1px solid rgba(91, 109, 122, 0.12);
+  background: rgba(255, 255, 255, 0.76);
 }
 
 .qr-preview-wrapper {
-  margin-bottom: 15px;
-  padding: 15px;
-  background: #fafafa;
-  border-radius: 8px;
-  display: inline-block;
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+  border: 1px solid rgba(91, 109, 122, 0.08);
+  background: #ffffff;
 }
 
 .qr-preview-image {
-  width: 150px;
-  height: 150px;
+  width: 154px;
+  height: 154px;
 }
 
 .qr-result-info {
-  text-align: left;
-  margin-bottom: 15px;
-  padding: 10px;
-  background-color: #f5f7fa;
-  border-radius: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(91, 109, 122, 0.12);
 }
 
 .result-info-item {
   display: flex;
-  margin-bottom: 6px;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
   font-size: 14px;
 }
 
@@ -530,20 +537,30 @@ onMounted(() => {
 }
 
 .result-label {
-  width: 70px;
-  font-weight: bold;
-  color: #606266;
-  margin-right: 8px;
+  color: #66737d;
 }
 
 .result-value {
-  color: #303133;
-  flex: 1;
+  color: #1f2a33;
+  font-weight: 600;
+  text-align: right;
   word-break: break-all;
 }
 
 .qr-result-actions {
+  margin-top: 16px;
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+  .page-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hero-summary {
+    flex-wrap: wrap;
+  }
 }
 </style>

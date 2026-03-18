@@ -1,118 +1,76 @@
 package com.hospital.arnavigation.controller;
 
 import com.hospital.arnavigation.common.Result;
+import com.hospital.arnavigation.dto.AdminLoginRequest;
+import com.hospital.arnavigation.dto.AvatarUploadResponse;
+import com.hospital.arnavigation.dto.CurrentUserResponse;
+import com.hospital.arnavigation.dto.LoginResponse;
+import com.hospital.arnavigation.dto.UserAvatarUpdateRequest;
 import com.hospital.arnavigation.dto.WechatLoginRequest;
-import lombok.Data;
+import com.hospital.arnavigation.service.UserService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-
-/**
- * 用户控制器
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/user")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
 public class UserController {
 
-    // 模拟用户数据（实际项目中应从数据库查询）
-    private static final Map<String, String> MOCK_USERS = new HashMap<>();
+    private final UserService userService;
 
-    static {
-        MOCK_USERS.put("admin", "123456");
-        MOCK_USERS.put("user1", "123456");
-        MOCK_USERS.put("test", "test");
+    @PostMapping("/admin/login")
+    public Result<LoginResponse> adminLogin(@RequestBody AdminLoginRequest request) {
+        log.info("admin login: username={}", request.getUsername());
+        return Result.success(userService.adminLogin(request), "登录成功");
     }
 
-    /**
-     * 微信小程序登录
-     * 通过 wx.login() 获取的 code 换取自定义登录态
-     */
+    @PostMapping("/wechat/login")
+    public Result<LoginResponse> wechatLogin(@RequestBody WechatLoginRequest request) {
+        log.info("wechat mini program login");
+        return Result.success(userService.wechatLogin(request), "登录成功");
+    }
+
     @PostMapping("/login")
-    public Result<LoginResponse> login(@RequestBody WechatLoginRequest request) {
-        log.info("微信小程序登录请求");
-
-        // 参数校验
-        if (request.getCode() == null || request.getCode().trim().isEmpty()) {
-            return Result.error(400, "登录凭证不能为空");
-        }
-
-        // TODO: 实际项目中需要调用微信接口验证 code
-        // 目前使用模拟登录，直接生成 token
-        // 微信接口调用示例：
-        // String url = "https://api.weixin.qq.com/sns/jscode2session" +
-        //              "?appid=" + appId +
-        //              "&secret=" + appSecret +
-        //              "&js_code=" + request.getCode() +
-        //              "&grant_type=authorization_code";
-        // 返回 openid 和 session_key，用于生成自定义登录态
-
-        // 生成 token
-        String token = UUID.randomUUID().toString().replace("-", "");
-
-        // 模拟用户数据（实际应从数据库查询或创建新用户）
-        String mockOpenid = "user_" + request.getCode().hashCode();
-
-        // 构建响应
-        LoginResponse response = new LoginResponse();
-        response.setToken(token);
-        response.setUsername(mockOpenid);
-        response.setNickname("微信用户" + mockOpenid.substring(mockOpenid.length() - 6));
-
-        log.info("用户登录成功: openid={}", mockOpenid);
-        return Result.success(response, "登录成功");
+    public Result<LoginResponse> compatibleWechatLogin(@RequestBody WechatLoginRequest request) {
+        return wechatLogin(request);
     }
 
-    /**
-     * 获取当前用户信息
-     */
     @GetMapping("/info")
-    public Result<UserInfo> getUserInfo(@RequestHeader(value = "Authorization", required = false) String token) {
-        if (token == null || token.isEmpty()) {
-            return Result.error(400,"未登录");
-        }
-
-        // 模拟返回用户信息
-        UserInfo userInfo = new UserInfo();
-        userInfo.setUsername("admin");
-        userInfo.setNickname("管理员");
-        userInfo.setAvatar("");
-
-        return Result.success(userInfo);
+    public Result<CurrentUserResponse> getUserInfo(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        return Result.success(userService.getCurrentUser(authorizationHeader), "查询成功");
     }
 
-    /**
-     * 退出登录
-     */
+    @PostMapping("/avatar")
+    public Result<AvatarUploadResponse> uploadAvatar(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestPart("file") MultipartFile file) {
+        return Result.success(userService.uploadAvatar(authorizationHeader, file), "上传成功");
+    }
+
+    @PutMapping("/profile/avatar")
+    public Result<CurrentUserResponse> updateCurrentUserAvatar(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody UserAvatarUpdateRequest request) {
+        return Result.success(userService.updateCurrentUserAvatar(authorizationHeader, request), "更新成功");
+    }
+
     @PostMapping("/logout")
-    public Result<Void> logout(@RequestHeader(value = "Authorization", required = false) String token) {
-        log.info("用户退出登录");
-        // 实际项目中需要清除token缓存
+    public Result<Void> logout(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        userService.logout(authorizationHeader);
         return Result.success(null, "退出成功");
-    }
-
-    // ============== DTO ==============
-
-    @Data
-    public static class LoginRequest {
-        private String username;
-        private String password;
-    }
-
-    @Data
-    public static class LoginResponse {
-        private String token;
-        private String username;
-        private String nickname;
-    }
-
-    @Data
-    public static class UserInfo {
-        private String username;
-        private String nickname;
-        private String avatar;
     }
 }

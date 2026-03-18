@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useUserStore } from '@/stores/user'
 import BasicLayout from '@/layouts/BasicLayout.vue'
+import { useUserStore } from '@/stores/user'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -13,7 +13,6 @@ const router = createRouter({
     },
     {
       path: '/',
-      name: 'layout',
       component: BasicLayout,
       meta: { requiresAuth: true },
       children: [
@@ -23,28 +22,44 @@ const router = createRouter({
           component: () => import('@/views/location/LocationManagement.vue')
         },
         {
-          path: '/qrcode-batch',
+          path: 'qrcode-batch',
           name: 'qrcode-batch',
           component: () => import('@/views/location/QRCodeBatch.vue')
+        },
+        {
+          path: 'users',
+          name: 'user-management',
+          component: () => import('@/views/user/UserManagement.vue')
         }
       ]
     }
   ]
 })
 
-// 路由守卫
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async to => {
   const userStore = useUserStore()
 
-  if (to.meta.requiresAuth !== false && !userStore.isLoggedIn) {
-    // 需要认证且未登录，跳转到登录页
-    next('/login')
-  } else if (to.path === '/login' && userStore.isLoggedIn) {
-    // 已登录访问登录页，跳转到首页
-    next('/')
-  } else {
-    next()
+  if (to.meta.requiresAuth === false) {
+    if (to.path === '/login' && userStore.isLoggedIn) {
+      return '/'
+    }
+    return true
   }
+
+  if (!userStore.isLoggedIn) {
+    return '/login'
+  }
+
+  if (!userStore.userInfo) {
+    try {
+      await userStore.fetchCurrentUser()
+    } catch {
+      await userStore.logout()
+      return '/login'
+    }
+  }
+
+  return true
 })
 
 export default router

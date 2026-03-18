@@ -91,3 +91,10 @@ navigation:
   max-path-distance: 5000
   # 路径规划超时时间 (毫秒)
   path-finding-timeout: 10000
+
+app:
+  upload:
+    avatar-dir: uploads/avatars
+  wechat:
+    appid: ${WECHAT_APP_ID:}
+    secret: ${WECHAT_APP_SECRET:}

@@ -18,4 +18,7 @@ public interface HospitalNodeMapper extends BaseMapper<HospitalNode> {
      */
     @Select("SELECT * FROM hospital_nodes WHERE node_code = #{nodeCode} AND is_active = 1")
     List<HospitalNode> selectByNodeCode(@Param("nodeCode") String nodeCode);
+
+    @Select("SELECT * FROM hospital_nodes WHERE node_name = #{nodeName} AND is_active = 1")
+    List<HospitalNode> selectByNodeName(@Param("nodeName") String nodeName);
 }

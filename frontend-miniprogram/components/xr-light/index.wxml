@@ -1,4 +1,0 @@
-<!-- XR光源组件 -->
-<view class="xr-light-container">
-  <slot />
-</view>

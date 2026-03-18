@@ -1,4 +1,0 @@
-<!-- XR节点组件 -->
-<view class="xr-node-container">
-  <slot />
-</view>

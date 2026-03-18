@@ -1,4 +1,0 @@
-/* XR相机容器样式 */
-.xr-camera-container {
-  display: contents;
-}
