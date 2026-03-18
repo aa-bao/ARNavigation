@@ -29,6 +29,7 @@ coverage/
 # Local databases
 *.db
 *.sqlite
+/sql
 
 # Temporary files
 *.tmp
@@ -41,3 +42,5 @@ Thumbs.db
 # Generated assets
 QR/
 backend/uploads/
+
+
