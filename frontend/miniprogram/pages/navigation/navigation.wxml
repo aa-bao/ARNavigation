@@ -61,6 +61,9 @@
     <button class="secondary-btn" bindtap="enterARMode">
       切换到 AR 模式
     </button>
+    <button class="secondary-btn" bindtap="openMapView">
+      查看地图
+    </button>
     <button class="ghost-btn" bindtap="endNavigation">
       结束导航
     </button>

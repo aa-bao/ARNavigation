@@ -27,6 +27,11 @@ const router = createRouter({
           component: () => import('@/views/location/QRCodeBatch.vue')
         },
         {
+          path: 'hospital-map',
+          name: 'hospital-map',
+          component: () => import('@/views/location/HospitalMapView.vue')
+        },
+        {
           path: 'users',
           name: 'user-management',
           component: () => import('@/views/user/UserManagement.vue')

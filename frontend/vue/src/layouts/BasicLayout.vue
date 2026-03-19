@@ -20,6 +20,10 @@
           <el-icon><Picture /></el-icon>
           <span>二维码批量生成</span>
         </el-menu-item>
+        <el-menu-item index="/hospital-map">
+          <el-icon><MapLocation /></el-icon>
+          <span>医院地图</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 
@@ -65,7 +69,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowDown, Location, Picture, User } from '@element-plus/icons-vue'
+import { ArrowDown, Location, MapLocation, Picture, User } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { resolveAssetUrl } from '@/utils/request'
 
@@ -77,6 +81,7 @@ const activeMenu = computed(() => route.path)
 
 const pageTitle = computed(() => {
   if (route.path === '/qrcode-batch') return '二维码批量生成'
+  if (route.path === '/hospital-map') return '医院地图'
   if (route.path === '/users') return '用户管理'
   return '地点管理'
 })

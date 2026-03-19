@@ -20,6 +20,7 @@ App({
     destination: null,
     navigationSession: null,
     currentNavigationMode: 'compass',
+    mapViewContext: null,
     navigationHistory: [],
     navState: 'UNLOCATED',
     systemInfo: null
@@ -153,5 +154,15 @@ App({
         currentMode: mode
       };
     }
+  },
+
+  setMapViewContext(context) {
+    this.globalData.mapViewContext = context || null;
+  },
+
+  consumeMapViewContext() {
+    const context = this.globalData.mapViewContext || null;
+    this.globalData.mapViewContext = null;
+    return context;
   }
 });

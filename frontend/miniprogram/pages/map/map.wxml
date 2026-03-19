@@ -1,0 +1,54 @@
+<view class="map-page">
+  <view class="hero-card">
+    <text class="eyebrow">{{mapMode === 'navigation' ? '导航地图' : '医院地图'}}</text>
+    <text class="title">{{activeTitle}}</text>
+    <text class="subtitle">{{guidanceText}}</text>
+  </view>
+
+  <scroll-view class="floor-switcher" scroll-x enable-flex>
+    <view
+      wx:for="{{floorOptions}}"
+      wx:key="key"
+      class="floor-chip {{activeKey === item.key ? 'active' : ''}}"
+      data-key="{{item.key}}"
+      bindtap="handleFloorSwitch"
+    >
+      {{item.key}}
+    </view>
+  </scroll-view>
+
+  <view class="map-card">
+    <view class="map-stage" wx:if="{{!errorText && !imageErrorText}}">
+      <image class="map-image" src="{{imagePath}}" mode="widthFix" binderror="handleImageError"></image>
+      <view class="marker-layer" wx:if="{{!isOverview}}">
+        <view
+          wx:for="{{markers}}"
+          wx:key="id"
+          class="marker marker-{{item.markerType}}"
+          style="{{item.style}}"
+        >
+          <view class="marker-dot"></view>
+          <text class="marker-label">{{item.nodeName}}</text>
+        </view>
+      </view>
+      <view class="overview-tip" wx:if="{{isOverview}}">
+        <text>3D 总览仅展示楼层关系，不显示精确定位点。</text>
+      </view>
+    </view>
+
+    <view class="state-card" wx:if="{{errorText || imageErrorText}}">
+      <text>{{imageErrorText || errorText}}</text>
+    </view>
+  </view>
+
+  <view class="summary-card">
+    <view class="summary-row">
+      <text class="summary-label">当前位置</text>
+      <text class="summary-value">{{currentSummary}}</text>
+    </view>
+    <view class="summary-row">
+      <text class="summary-label">目的地</text>
+      <text class="summary-value">{{destinationSummary}}</text>
+    </view>
+  </view>
+</view>

@@ -287,6 +287,16 @@ Page({
     });
   },
 
+  openMapView() {
+    app.setMapViewContext?.({
+      mode: 'navigation'
+    });
+
+    wx.switchTab({
+      url: '/pages/map/map'
+    });
+  },
+
   endNavigation() {
     clearNavigationSession(app);
     app.updateNavState('READY');

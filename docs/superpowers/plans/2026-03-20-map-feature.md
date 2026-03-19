@@ -10,6 +10,16 @@
 
 ---
 
+## Source of Truth
+
+- The canonical map projection source of truth is the shared config + projector pair:
+  - mini program: `frontend/miniprogram/services/map-data.js` + `frontend/miniprogram/utils/map-projector.js`
+  - Vue admin: `frontend/vue/src/constants/maps.ts` + `frontend/vue/src/utils/mapProjector.ts`
+- Both implementations must use the same floor ranges:
+  - `minX=-8`, `maxX=48`
+  - `minY=-20`, `maxY=35`
+- If a backend `GET /api/maps` endpoint is added later, it must match these values exactly and replace, not fork, the frontend constants.
+
 ## File Map
 
 ### Shared map data and projection
@@ -44,12 +54,6 @@
 - Modify: `frontend/vue/src/router/index.ts`
 - Modify: `frontend/vue/src/api/location.ts`
 - Create: `frontend/vue/src/views/location/HospitalMapView.vue`
-
-### Optional backend map config exposure
-
-- Create: `backend/src/main/java/com/hospital/arnavigation/dto/MapConfigDTO.java`
-- Modify: `backend/src/main/java/com/hospital/arnavigation/controller/NavigationController.java`
-- Test: `backend/src/test/java/com/hospital/arnavigation/controller/NavigationControllerTest.java`
 
 ## Chunk 1: Shared map foundation
 
@@ -91,8 +95,8 @@ Keep naming and formulae aligned with the mini program implementation so renderi
 - [ ] **Step 5: Run a manual logic sanity check**
 
 Verify with sample points:
-- `(0, 0)` projects inside bounds
-- `(24, 12)` projects inside bounds
+- `(0, 0)` projects to `left≈14.29%`, `top≈63.64%`
+- `(24, 12)` projects to `left≈57.14%`, `top≈41.82%`
 - missing floor returns no precise marker result
 
 - [ ] **Step 6: Commit**
@@ -284,9 +288,9 @@ Implement:
 - projected node overlays
 - selected-node details panel
 
-- [ ] **Step 5: Add optional edge-overlay scaffolding without requiring it for v1**
+- [ ] **Step 5: Keep edge-overlay work out of v1**
 
-If edge data is easy to obtain from current APIs, include a toggle. Otherwise, leave the toggle disabled with explicit TODO-free copy such as “v1 暂未接入”.
+Do not implement edge overlays in this task. If the page needs to acknowledge the future capability, use static copy such as “边线预览将在后续版本提供”, without adding toggles, dead code, or placeholder API calls.
 
 - [ ] **Step 6: Run a local frontend verification**
 
@@ -301,45 +305,9 @@ git add frontend/vue/src/router/index.ts frontend/vue/src/api/location.ts fronte
 git commit -m "feat: add admin hospital map preview"
 ```
 
-## Chunk 4: Optional backend map config endpoint
+## Chunk 4: Final integration and verification
 
-### Task 6: Expose map metadata from the backend if integration benefit is worth the churn
-
-**Files:**
-- Create: `backend/src/main/java/com/hospital/arnavigation/dto/MapConfigDTO.java`
-- Modify: `backend/src/main/java/com/hospital/arnavigation/controller/NavigationController.java`
-- Test: `backend/src/test/java/com/hospital/arnavigation/controller/NavigationControllerTest.java`
-
-- [ ] **Step 1: Decide whether to ship v1 with local config or server config**
-
-Default recommendation:
-- use local config first if it avoids cross-stack churn
-- only add backend exposure if both frontends clearly benefit right now
-
-- [ ] **Step 2: If backend exposure is chosen, add a failing controller test**
-
-Test:
-- `GET /api/maps` returns floor-plan metadata and overview metadata
-
-- [ ] **Step 3: Implement the DTO and controller response**
-
-Keep the response static and focused; do not add image upload or edit APIs.
-
-- [ ] **Step 4: Run the targeted backend tests**
-
-Run: `mvn -Dtest=NavigationControllerTest test`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add backend/src/main/java/com/hospital/arnavigation/dto/MapConfigDTO.java backend/src/main/java/com/hospital/arnavigation/controller/NavigationController.java backend/src/test/java/com/hospital/arnavigation/controller/NavigationControllerTest.java
-git commit -m "feat: expose map metadata api"
-```
-
-## Chunk 5: Final integration and verification
-
-### Task 7: Verify cross-app consistency and clean handoff
+### Task 6: Verify cross-app consistency and clean handoff
 
 **Files:**
 - Inspect: `frontend/miniprogram/pages/map/map.js`
@@ -377,11 +345,9 @@ Run: `npm run build`
 Workdir: `frontend/vue`
 Expected: PASS.
 
-- [ ] **Step 5: Run backend verification if Task 6 was implemented**
+- [ ] **Step 5: Keep backend map-config exposure in the backlog**
 
-Run: `mvn test`
-Workdir: `backend`
-Expected: PASS or only unrelated pre-existing failures documented in final notes.
+Do not implement `GET /api/maps` in v1. If later work needs it, create a separate follow-up plan with DTO, controller, and test changes scoped only to backend metadata exposure.
 
 - [ ] **Step 6: Commit**
 
