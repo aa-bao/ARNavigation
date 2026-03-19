@@ -96,5 +96,5 @@ app:
   upload:
     avatar-dir: uploads/avatars
   wechat:
-    appid: ${WECHAT_APP_ID:}
-    secret: ${WECHAT_APP_SECRET:}
+    appid: wx53ff82a14e9b44df
+    secret: 4cfef7880394361f5c64bba4d18c10ae

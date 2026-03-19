@@ -1,19 +1,31 @@
-import { login } from '../../utils/auth.js';
+import { clearAuthSession, login } from '../../utils/auth.js';
 
 const app = getApp();
 
 Page({
   data: {
-    submitting: false
+    submitting: false,
+    avatarUrl: '',
+    nickname: ''
   },
 
-  onShow() {
-    const token = wx.getStorageSync('token');
-    if (token) {
+  async onShow() {
+    const authenticated = await app.isAuthenticated();
+    if (authenticated) {
       wx.switchTab({
         url: '/pages/index/index'
       });
     }
+  },
+
+  handleChooseAvatar(event) {
+    const avatarUrl = event?.detail?.avatarUrl || '';
+    this.setData({ avatarUrl });
+  },
+
+  handleNicknameInput(event) {
+    const nickname = event?.detail?.value || '';
+    this.setData({ nickname });
   },
 
   async handleWechatAuthorizeLogin() {
@@ -21,9 +33,30 @@ Page({
       return;
     }
 
+    if (!this.data.avatarUrl) {
+      wx.showToast({
+        title: '请先点击头像完成授权',
+        icon: 'none'
+      });
+      return;
+    }
+
+    if (!this.data.nickname.trim()) {
+      wx.showToast({
+        title: '请先填写昵称',
+        icon: 'none'
+      });
+      return;
+    }
+
     this.setData({ submitting: true });
     try {
-      const session = await login();
+      clearAuthSession();
+      const session = await login({
+        nickname: this.data.nickname.trim(),
+        nickName: this.data.nickname.trim(),
+        avatarUrl: this.data.avatarUrl
+      });
       app.globalData.userInfo = session.userInfo || wx.getStorageSync('userInfo') || null;
 
       wx.showToast({

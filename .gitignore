@@ -23,6 +23,7 @@ coverage/
 .idea/
 .vscode/
 .claude/
+.worktrees/
 *.swp
 *.swo
 
@@ -42,5 +43,4 @@ Thumbs.db
 # Generated assets
 QR/
 backend/uploads/
-
 

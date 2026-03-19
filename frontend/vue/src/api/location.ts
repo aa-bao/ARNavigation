@@ -1,5 +1,13 @@
 import { get, post, put, del } from '@/utils/request'
 
+interface ApiResult<T> {
+  code?: number
+  message?: string
+  data?: T
+  success?: boolean
+  timestamp?: number
+}
+
 // 定义Location接口类型
 export interface Location {
   id?: number
@@ -35,8 +43,15 @@ export enum NodeType {
 }
 
 // 获取地点列表
-export function getLocationList(params?: any) {
-  return get('/navigation/nodes', params)
+export async function getLocationList(params?: any): Promise<HospitalNode[]> {
+  const response = await get('/navigation/nodes', params)
+
+  if (Array.isArray(response)) {
+    return response
+  }
+
+  const result = response as ApiResult<HospitalNode[]>
+  return Array.isArray(result?.data) ? result.data : []
 }
 
 // 根据code获取地点

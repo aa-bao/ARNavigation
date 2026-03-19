@@ -1,7 +1,18 @@
 // pages/settings/settings.js
-import { put, uploadFile } from '../../utils/request.js';
+import { put, resolveAssetUrl, uploadFile } from '../../utils/request.js';
 
 const app = getApp();
+
+const normalizeUserInfo = (userInfo) => {
+  if (!userInfo || typeof userInfo !== 'object') {
+    return null;
+  }
+
+  return {
+    ...userInfo,
+    avatarUrl: resolveAssetUrl(userInfo.avatarUrl || userInfo.avatar || '')
+  };
+};
 
 Page({
   data: {
@@ -25,7 +36,6 @@ Page({
     },
     userInfo: null,
     permissions: {
-      location: false,
       camera: false,
       microphone: false
     }
@@ -45,10 +55,11 @@ Page({
 
   loadAuthState() {
     const token = wx.getStorageSync('token');
-    const userInfo = app.globalData.userInfo || wx.getStorageSync('userInfo') || null;
+    const userInfo = normalizeUserInfo(app.globalData.userInfo || wx.getStorageSync('userInfo') || null);
     const isLoggedIn = !!token;
     if (userInfo) {
       app.globalData.userInfo = userInfo;
+      wx.setStorageSync('userInfo', userInfo);
     }
     this.setData({
       isLoggedIn,
@@ -101,7 +112,7 @@ Page({
 
       wx.showLoading({ title: '上传中...' });
       const uploadResult = await uploadFile('/user/avatar', filePath, 'file');
-      const userInfo = await put('/user/profile/avatar', { avatarUrl: uploadResult.avatarUrl });
+      const userInfo = normalizeUserInfo(await put('/user/profile/avatar', { avatarUrl: uploadResult.avatarUrl }));
       app.globalData.userInfo = userInfo;
       wx.setStorageSync('userInfo', userInfo);
       this.setData({ userInfo, isLoggedIn: true });
@@ -125,7 +136,6 @@ Page({
       success: (res) => {
         this.setData({
           permissions: {
-            location: res.authSetting['scope.userLocation'] === true,
             camera: res.authSetting['scope.camera'] === true,
             microphone: res.authSetting['scope.record'] === true
           }

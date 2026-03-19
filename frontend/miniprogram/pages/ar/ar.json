@@ -4,5 +4,6 @@
   "navigationBarTextStyle": "white",
   "backgroundColor": "#000000",
   "enablePullDownRefresh": false,
-  "navigationStyle": "custom"
+  "navigationStyle": "custom",
+  "usingComponents": {}
 }

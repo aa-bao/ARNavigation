@@ -1,142 +1,68 @@
-<!--pages/navigation/navigation.wxml-->
-<view class="container navigation-container">
-  <!-- 顶部导航信息 -->
-  <view class="nav-header">
-    <view class="route-info">
-      <view class="location-point start">
-        <text class="point-label">起点</text>
-        <text class="point-name">{{currentLocation ? currentLocation.name : ''}}</text>
-      </view>
-      <view class="route-arrow">→</view>
-      <view class="location-point end">
-        <text class="point-label">终点</text>
-        <text class="point-name">{{destination ? destination.name : ''}}</text>
-      </view>
+<view class="navigation-page">
+  <view class="hero-card">
+    <text class="eyebrow">指南针模式</text>
+    <text class="title">{{destination ? destination.nodeName || destination.name : '等待目的地'}}</text>
+    <text class="subtitle">{{instructionText}}</text>
+  </view>
+
+  <view class="arrival-card" wx:if="{{arrivedAtTarget}}">
+    <text class="arrival-title">已到达目的地</text>
+    <text class="arrival-desc">{{destination ? destination.nodeName || destination.name : ''}}</text>
+  </view>
+
+  <view class="status-card" wx:if="{{currentNode}}">
+    <view class="status-row">
+      <text class="label">当前扫码点</text>
+      <text class="value">{{currentNode.nodeName}}</text>
+    </view>
+    <view class="status-row">
+      <text class="label">下一二维码点</text>
+      <text class="value">{{nextNode ? nextNode.nodeName : '已到达目标点'}}</text>
+    </view>
+    <view class="status-row">
+      <text class="label">设备朝向</text>
+      <text class="value">{{deviceDirection}}°</text>
+    </view>
+    <view class="status-row">
+      <text class="label">目标朝向</text>
+      <text class="value">{{targetDirection}}°</text>
     </view>
   </view>
 
-  <!-- 主要导航界面 -->
-  <view class="nav-main">
-    <!-- 方向指示器 -->
-    <view class="direction-indicator">
-      <view class="compass-container">
-        <view class="compass-rose" style="transform: rotate({{-deviceDirection}}deg)">
-          <text class="compass-label compass-n">N</text>
-          <text class="compass-label compass-s">S</text>
-          <text class="compass-label compass-e">E</text>
-          <text class="compass-label compass-w">W</text>
-        </view>
-
-        <view class="arrow-wrapper">
-          <view class="direction-arrow" style="transform: rotate({{relativeAngle}}deg)">
-            <text>↑</text>
-          </view>
-        </view>
+  <view class="compass-card">
+    <view class="compass-shell">
+      <view class="compass-ring" style="transform: rotate({{-deviceDirection}}deg)">
+        <text class="ring-label north">N</text>
+        <text class="ring-label east">E</text>
+        <text class="ring-label south">S</text>
+        <text class="ring-label west">W</text>
       </view>
-
-      <view class="direction-info">
-        <text class="direction-text">{{directionText}}</text>
-        <view class="angle-info">
-          <text>目标方向: {{targetDirectionDisplay}}°</text>
-          <text>设备方向: {{deviceDirectionDisplay}}°</text>
-        </view>
-      </view>
+      <view class="compass-arrow" style="transform: rotate({{relativeAngle}}deg)">→</view>
     </view>
-
-    <!-- 导航信息卡片 -->
-    <view class="nav-info-card">
-      <view class="nav-instruction">
-        <text class="instruction-icon">🎯</text>
-        <text class="instruction-text">{{currentInstruction}}</text>
-      </view>
-
-      <view class="nav-stats">
-        <view class="stat-item">
-          <text class="stat-value">{{remainingDistance}}</text>
-          <text class="stat-unit">米</text>
-          <text class="stat-label">剩余距离</text>
-        </view>
-
-        <view class="stat-divider"></view>
-
-        <view class="stat-item">
-          <text class="stat-value">{{estimatedTime}}</text>
-          <text class="stat-unit">分钟</text>
-          <text class="stat-label">预计用时</text>
-        </view>
-
-        <view class="stat-divider"></view>
-
-        <view class="stat-item">
-          <text class="stat-value">{{currentStepIndex + 1}}/{{totalSteps}}</text>
-          <text class="stat-unit">步</text>
-          <text class="stat-label">路径进度</text>
-        </view>
-      </view>
-
-      <view class="next-instruction" wx:if="{{nextInstruction && currentStepIndex < totalSteps - 1}}">
-        <text class="next-label">下一步:</text>
-        <text class="next-text">{{nextInstruction}}</text>
-      </view>
-    </view>
+    <text class="direction-text">{{directionText}}</text>
   </view>
 
-  <!-- 路径节点列表 -->
-  <view class="path-section">
-    <view class="section-title">
-      <text> 路径详情</text>
-    </view>
-
-    <view class="path-list">
-      <view
-        class="path-node {{index === currentStepIndex ? 'current' : ''}} {{index < currentStepIndex ? 'completed' : ''}}"
-        wx:for="{{path}}"
-        wx:key="id"
-        wx:index="index"
-      >
-        <view class="node-indicator">
-          <view class="node-dot"></view>
-          <view class="node-line" wx:if="{{index < path.length - 1}}"></view>
-        </view>
-
-        <view class="node-content">
-          <text class="node-name">{{item.name}}</text>
-          <text class="node-instruction">{{item.instruction}}</text>
-        </view>
-
-        <view class="node-status" wx:if="{{index === currentStepIndex}}">
-          <text class="status-badge current">当前</text>
-        </view>
-
-        <view class="node-status" wx:if="{{index < currentStepIndex}}">
-          <text class="status-badge completed">✓</text>
-        </view>
-      </view>
-    </view>
+  <view class="prompt-card">
+    <text class="prompt-title">校准策略</text>
+    <text class="prompt-body">位置只以二维码扫描为准。请沿提示前往下一二维码点，到达后重新扫描。</text>
   </view>
 
-  <!-- 底部操作栏 -->
-  <view class="action-bar">
-    <view class="action-left">
-      <button class="action-btn pause-btn" bindtap="toggleNavigation">
-        <text>{{isNavigating ? '暂停' : '继续'}}</text>
-      </button>
-
-      <button class="action-btn end-btn" bindtap="endNavigation">
-        <text>结束</text>
-      </button>
-    </view>
-
-    <view class="action-right">
-      <button class="action-btn primary ar-btn" bindtap="scanQRCode">
-        <text>扫码更新</text>
-      </button>
-      <button class="action-btn primary ar-btn" bindtap="enterARMode">
-        <text>AR导航</text>
-      </button>
-    </view>
+  <view class="error-card" wx:if="{{errorText}}">
+    <text>{{errorText}}</text>
   </view>
 
-  <!-- 底部安全区域 -->
-  <view class="safe-area-bottom"></view>
+  <view class="action-group">
+    <button class="primary-btn" bindtap="handleRescan" loading="{{loading}}">
+      重新扫码校准
+    </button>
+    <button class="secondary-btn" bindtap="handleArrivedPrompt">
+      我已到达下一点
+    </button>
+    <button class="secondary-btn" bindtap="enterARMode">
+      切换到 AR 模式
+    </button>
+    <button class="ghost-btn" bindtap="endNavigation">
+      结束导航
+    </button>
+  </view>
 </view>

@@ -143,7 +143,10 @@ public class UserServiceImpl implements UserService {
 
     private WechatCode2SessionResponse exchangeCodeForSession(String code) {
         if (isBlank(wechatAppId) || isBlank(wechatAppSecret)) {
-            throw new IllegalStateException("WeChat config missing: app.wechat.appid/secret");
+            throw new IllegalStateException(
+                    "WeChat config missing: set app.wechat.appid/app.wechat.secret "
+                            + "or env APP_WECHAT_APPID/APP_WECHAT_SECRET "
+                            + "(compatible with WECHAT_APP_ID/WECHAT_APP_SECRET)");
         }
 
         try {

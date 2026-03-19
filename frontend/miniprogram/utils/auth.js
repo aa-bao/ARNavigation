@@ -1,4 +1,4 @@
-import { post } from './request.js';
+import { post, put, resolveAssetUrl, uploadFile } from './request.js';
 
 const AUTH_KEYS = {
   TOKEN: 'token',
@@ -17,7 +17,7 @@ const normalizeUserInfo = (userInfo) => {
     ...userInfo,
     nickname,
     nickName: userInfo.nickName || nickname,
-    avatarUrl
+    avatarUrl: resolveAssetUrl(avatarUrl)
   };
 };
 
@@ -86,12 +86,38 @@ export const getAuthSession = () => ({
   userInfo: normalizeUserInfo(wx.getStorageSync(AUTH_KEYS.USER_INFO))
 });
 
+const getAvatarValue = (profile = {}) => String(profile.avatarUrl || profile.avatar || '').trim();
+
+const isPersistentAvatar = (avatarUrl) => {
+  if (!avatarUrl) {
+    return false;
+  }
+
+  if (/^\/(uploads|static)\//i.test(avatarUrl)) {
+    return true;
+  }
+
+  if (!/^https?:\/\//i.test(avatarUrl)) {
+    return false;
+  }
+
+  return !/^https?:\/\/(tmp|store)\//i.test(avatarUrl);
+};
+
 const loginWithCode = async (code, profile = {}) => {
-  const data = await post('/user/wechat/login', {
+  const rawAvatarUrl = getAvatarValue(profile);
+  const loginPayload = {
     code,
     nickname: profile.nickname || profile.nickName || '',
-    avatarUrl: profile.avatarUrl || profile.avatar || ''
-  });
+    avatarUrl: ''
+  };
+
+  if (isPersistentAvatar(rawAvatarUrl)) {
+    loginPayload.avatarUrl = rawAvatarUrl;
+  }
+
+  console.log('wechat login: exchanging code for session');
+  const data = await post('/user/wechat/login', loginPayload);
 
   const session = normalizeAuthSession(data) || {
     token: data?.token || '',
@@ -99,32 +125,63 @@ const loginWithCode = async (code, profile = {}) => {
   };
 
   saveAuthSession(session);
+
+  const uploadedAvatarUrl = await syncWechatAvatar(rawAvatarUrl);
+  if (uploadedAvatarUrl) {
+    const updatedUserInfo = await put('/user/profile/avatar', { avatarUrl: uploadedAvatarUrl });
+    session.userInfo = normalizeUserInfo(updatedUserInfo) || session.userInfo;
+    saveAuthSession(session);
+  }
+
   return session;
 };
 
-export const login = () => {
-  return new Promise((resolve, reject) => {
-    wx.getUserProfile({
-      desc: '用于完善用户资料',
-      success: (profileRes) => {
-        wx.login({
-          success: async (loginRes) => {
-            if (!loginRes.code) {
-              reject(new Error('登录失败'));
-              return;
-            }
+const isTemporaryWechatAvatar = (avatarUrl) => {
+  if (!avatarUrl) {
+    return false;
+  }
 
-            try {
-              const session = await loginWithCode(loginRes.code, profileRes.userInfo || {});
-              resolve(session);
-            } catch (error) {
-              reject(error);
-            }
-          },
-          fail: () => reject(new Error('登录失败'))
-        });
+  const value = String(avatarUrl).trim();
+  if (!value) {
+    return false;
+  }
+
+  if (isPersistentAvatar(value)) {
+    return false;
+  }
+
+  return true;
+};
+
+const syncWechatAvatar = async (avatarUrl) => {
+  if (!isTemporaryWechatAvatar(avatarUrl)) {
+    return '';
+  }
+
+  console.log('wechat login: uploading chosen avatar');
+  const uploadResult = await uploadFile('/user/avatar', avatarUrl);
+  return uploadResult?.avatarUrl || '';
+};
+
+export const login = (profile = {}) => {
+  return new Promise((resolve, reject) => {
+    console.log('wechat login: requesting login code');
+    wx.login({
+      success: async (loginRes) => {
+        if (!loginRes.code) {
+          reject(new Error('微信登录失败，未获取到 code'));
+          return;
+        }
+
+        try {
+          console.log('wechat login: wx.login code received');
+          const session = await loginWithCode(loginRes.code, profile);
+          resolve(session);
+        } catch (error) {
+          reject(error);
+        }
       },
-      fail: () => reject(new Error('用户取消授权'))
+      fail: () => reject(new Error('微信登录失败'))
     });
   });
 };

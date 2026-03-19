@@ -1,6 +1,5 @@
 <!--pages/index/index.wxml-->
 <view class="container index-container">
-  <!-- 状态栏 -->
   <view class="status-bar">
     <view class="status-item {{navState === 'UNLOCATED' ? 'inactive' : 'active'}}">
       <view class="status-dot"></view>
@@ -8,21 +7,19 @@
     </view>
   </view>
 
-  <!-- 扫码定位区域 -->
   <view class="scan-section" wx:if="{{navState === 'UNLOCATED'}}">
     <view class="scan-card">
       <view class="scan-icon-container" bindtap="handleScan">
         <image class="scan-icon" src="/images/scan.png" mode="aspectFit"></image>
       </view>
       <text class="scan-title">扫码定位</text>
-      <text class="scan-desc">扫描附近的二维码获取当前位置</text>
+      <text class="scan-desc">扫描附近二维码，确定您的当前位置</text>
       <button class="btn btn-primary scan-btn" bindtap="handleScan">
         <text>开始扫码</text>
       </button>
     </view>
   </view>
 
-  <!-- 位置确认区域 -->
   <view class="location-section" wx:if="{{navState === 'READY'}}">
     <view class="card location-card">
       <view class="location-header">
@@ -42,7 +39,6 @@
     </view>
   </view>
 
-  <!-- 目的地选择区域 -->
   <view class="destination-section" wx:if="{{navState === 'READY'}}">
     <view class="card destination-card">
       <view class="destination-header">
@@ -50,13 +46,12 @@
         <text class="destination-title">选择目的地</text>
       </view>
 
-      <!-- 搜索框 -->
       <view class="search-box">
         <image class="search-icon" src="/images/search.png" mode="aspectFit"></image>
         <input
           class="search-input"
           type="text"
-          placeholder="搜索科室、病房、设施..."
+          placeholder="搜索科室、地点或设施"
           value="{{searchKeyword}}"
           bindinput="onSearchInput"
           confirm-type="search"
@@ -65,27 +60,51 @@
         <view class="search-clear" wx:if="{{searchKeyword}}" bindtap="clearSearch">×</view>
       </view>
 
-      <!-- 快捷目的地 -->
+      <view class="filter-row">
+        <picker
+          class="filter-picker"
+          mode="selector"
+          range="{{floorOptions}}"
+          value="{{floorFilterIndex}}"
+          bindchange="onFloorFilterChange"
+        >
+          <view class="filter-chip">楼层：{{floorOptions[floorFilterIndex]}}</view>
+        </picker>
+        <picker
+          class="filter-picker"
+          mode="selector"
+          range="{{typeOptions}}"
+          value="{{typeFilterIndex}}"
+          bindchange="onTypeFilterChange"
+        >
+          <view class="filter-chip">类型：{{typeOptions[typeFilterIndex]}}</view>
+        </picker>
+      </view>
+
       <view class="quick-destinations" wx:if="{{!searchKeyword}}">
-        <text class="section-title">常用目的地</text>
+        <text class="section-title">可选目的地</text>
         <view class="destination-grid">
           <view
             class="destination-item {{selectedDestination && selectedDestination.id === item.id ? 'selected' : ''}}"
-            wx:for="{{commonDestinations}}"
+            wx:for="{{pagedDestinations}}"
             wx:key="id"
             bindtap="selectDestination"
             data-item="{{item}}"
           >
             <text class="item-name">{{item.name}}</text>
-            <text class="item-floor">{{item.floor}}</text>
+            <text class="item-floor">{{item.floor}} {{item.typeLabel}}</text>
           </view>
+        </view>
+        <view class="pagination-row" wx:if="{{totalPages > 1}}">
+          <button class="page-btn" bindtap="goPrevPage" disabled="{{currentPage <= 1}}">上一页</button>
+          <text class="page-indicator">{{currentPage}} / {{totalPages}}</text>
+          <button class="page-btn" bindtap="goNextPage" disabled="{{currentPage >= totalPages}}">下一页</button>
         </view>
       </view>
 
-      <!-- 搜索结果 -->
       <view class="search-results" wx:if="{{searchKeyword}}">
         <view wx:if="{{searchResults.length === 0}}" class="no-results">
-          <image class="no-results-icon" src="/images/empty.png" mode="aspectFit"></image>
+          <image class="no-results-icon" src="/images/search.png" mode="aspectFit"></image>
           <text>未找到相关地点</text>
         </view>
         <view
@@ -97,7 +116,7 @@
         >
           <view class="result-info">
             <text class="result-name">{{item.name}}</text>
-            <text class="result-detail">{{item.floor}} · {{item.type}}</text>
+            <text class="result-detail">{{item.floor}} {{item.typeLabel}}</text>
           </view>
           <view class="result-distance" wx:if="{{item.distance}}">
             <text>{{item.distance}}m</text>
@@ -105,7 +124,6 @@
         </view>
       </view>
 
-      <!-- 已选目的地 -->
       <view class="selected-destination" wx:if="{{selectedDestination}}">
         <view class="selected-info">
           <image class="selected-icon" src="/images/destination.png" mode="aspectFit"></image>
@@ -123,32 +141,25 @@
     </view>
   </view>
 
-  <!-- 历史记录 -->
-  <view class="history-section" wx:if="{{navigationHistory.length > 0 && navState === 'READY'}}">
-    <view class="card history-card">
+  <view class="recent-section" wx:if="{{recentDestinations.length > 0 && navState === 'READY'}}">
+    <view class="card recent-card">
       <view class="history-header">
-        <text class="history-title">最近导航</text>
-        <text class="history-clear" bindtap="clearHistory">清除</text>
+        <text class="history-title">最近到访目的地</text>
       </view>
-      <view class="history-list">
+      <view class="destination-grid recent-grid">
         <view
-          class="history-item"
-          wx:for="{{navigationHistory.slice(0, 5)}}"
-          wx:key="timestamp"
-          bindtap="reuseHistory"
+          class="destination-item {{selectedDestination && selectedDestination.id === item.id ? 'selected' : ''}}"
+          wx:for="{{recentDestinations}}"
+          wx:key="id"
+          bindtap="selectDestination"
           data-item="{{item}}"
         >
-          <view class="history-route">
-            <text class="history-from">{{item.fromName}}</text>
-            <text class="history-arrow">→</text>
-            <text class="history-to">{{item.toName}}</text>
-          </view>
-          <text class="history-time">{{formatTime(item.timestamp)}}</text>
+          <text class="item-name">{{item.name}}</text>
+          <text class="item-floor">{{item.typeLabel}}</text>
         </view>
       </view>
     </view>
   </view>
 
-  <!-- 底部安全区域 -->
   <view class="safe-area-bottom"></view>
 </view>

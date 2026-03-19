@@ -20,6 +20,11 @@
 ## WeChat Mini Program Login
 
 - `POST /api/user/wechat/login`
+- Backend config required before testing:
+  - `app.wechat.appid`
+  - `app.wechat.secret`
+  - or environment variables `APP_WECHAT_APPID` / `APP_WECHAT_SECRET`
+  - compatible aliases: `WECHAT_APP_ID` / `WECHAT_APP_SECRET`
 
 ```json
 {

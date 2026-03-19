@@ -43,8 +43,8 @@
         <view class="item-left">
           <image class="item-icon" src="/images/location.png" mode="aspectFit"></image>
           <view class="item-content">
-            <text class="item-title">高精度定位</text>
-            <text class="item-desc">使用GPS和网络提高精度</text>
+            <text class="item-title">扫码校准优先</text>
+            <text class="item-desc">优先使用二维码校准当前位置</text>
           </view>
         </view>
         <switch class="item-switch" checked="{{settings.highAccuracyLocation}}" data-field="highAccuracyLocation" bindchange="onSettingChange" />
@@ -71,7 +71,7 @@
           <image class="item-icon" src="/images/permission.png" mode="aspectFit"></image>
           <view class="item-content">
             <text class="item-title">应用权限</text>
-            <text class="item-desc">管理位置、相机等权限</text>
+            <text class="item-desc">管理相机、麦克风等权限</text>
           </view>
         </view>
         <image class="item-arrow" src="/images/arrow-right.png" mode="aspectFit"></image>

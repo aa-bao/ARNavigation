@@ -1,5 +1,6 @@
 const BASE_URL = 'http://192.168.101.11:8080/api';
 const TIMEOUT = 10000;
+const ASSET_BASE_URL = BASE_URL.replace(/\/api\/?$/, '');
 
 const requestInterceptor = (options) => {
   const token = wx.getStorageSync('token');
@@ -114,6 +115,22 @@ export const uploadFile = (url, filePath, name = 'file', formData = {}) => new P
     fail: () => reject(new Error('上传失败'))
   });
 });
+
+export const resolveAssetUrl = (url = '') => {
+  if (!url) {
+    return '';
+  }
+
+  if (/^(https?:\/\/|wxfile:\/\/|wdfile:\/\/|data:)/i.test(url)) {
+    return url;
+  }
+
+  if (url.startsWith('/')) {
+    return `${ASSET_BASE_URL}${url}`;
+  }
+
+  return `${ASSET_BASE_URL}/${url}`;
+};
 
 export const checkSession = () => new Promise((resolve) => {
   wx.checkSession({

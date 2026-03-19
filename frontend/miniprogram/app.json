@@ -34,13 +34,7 @@
   },
   "permission": {
     "scope.camera": {
-      "desc": "用于AR导航功能"
-    },
-    "scope.userLocation": {
-      "desc": "用于室内定位和导航"
-    },
-    "scope.userLocationBackground": {
-      "desc": "用于后台定位"
+      "desc": "用于AR导航与扫码定位"
     }
   },
   "sitemapLocation": "sitemap.json"

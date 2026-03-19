@@ -118,7 +118,7 @@ export const calculateRelativeDirection = (deviceDirection, targetDirection) => 
 
   // 确定方向描述
   let direction = '';
-  let arrowRotation = relativeAngle;
+  let arrowRotation = relativeAngle - 90;
 
   if (Math.abs(relativeAngle) <= 22.5) {
     direction = '正前方';
@@ -158,78 +158,6 @@ const toRadians = (degrees) => {
  */
 const toDegrees = (radians) => {
   return radians * (180 / Math.PI);
-};
-
-/**
- * 获取定位错误信息
- */
-const getLocationErrorMessage = (errCode) => {
-  const errorMessages = {
-    0: '定位失败',
-    1: '用户拒绝授权获取位置信息',
-    2: '获取位置信息失败',
-    3: '定位超时，请检查网络连接',
-    4: '未知错误'
-  };
-  return errorMessages[errCode] || errorMessages[4];
-};
-
-/**
- * 检查定位权限
- * @returns {Promise}
- */
-export const checkLocationPermission = () => {
-  return new Promise((resolve) => {
-    wx.getSetting({
-      success: (res) => {
-        const hasPermission = res.authSetting['scope.userLocation'];
-        resolve({
-          hasPermission: !!hasPermission,
-          isAuthorized: hasPermission === true,
-          isDenied: hasPermission === false,
-          isNotDetermined: hasPermission === undefined
-        });
-      },
-      fail: () => {
-        resolve({
-          hasPermission: false,
-          isAuthorized: false,
-          isDenied: false,
-          isNotDetermined: true
-        });
-      }
-    });
-  });
-};
-
-/**
- * 请求定位权限
- * @returns {Promise}
- */
-export const requestLocationPermission = () => {
-  return new Promise((resolve, reject) => {
-    wx.authorize({
-      scope: 'scope.userLocation',
-      success: () => {
-        resolve({ granted: true });
-      },
-      fail: (err) => {
-        console.error('Location permission denied:', err);
-        reject(new Error('定位权限被拒绝'));
-      }
-    });
-  });
-};
-
-/**
- * 打开权限设置页面
- */
-export const openPermissionSetting = () => {
-  wx.openSetting({
-    success: (res) => {
-      console.log('Setting opened:', res);
-    }
-  });
 };
 
 /**

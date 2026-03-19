@@ -1,15 +1,35 @@
 <view class="login-page">
   <view class="login-card">
     <view class="brand">AR HOSPITAL</view>
-    <view class="title">微信授权登录</view>
-    <view class="desc">登录后可使用院内导航、历史记录与个人设置。</view>
+    <view class="title">微信登录</view>
+    <view class="desc">先点击头像授权头像，再填写昵称，最后建立小程序登录会话。</view>
+    <button
+      class="avatar-picker"
+      open-type="chooseAvatar"
+      bindchooseavatar="handleChooseAvatar"
+    >
+      <image
+        wx:if="{{avatarUrl}}"
+        class="avatar-image"
+        src="{{avatarUrl}}"
+        mode="aspectFill"
+      />
+      <view wx:else class="avatar-placeholder">点击头像授权</view>
+    </button>
+    <input
+      class="nickname-input"
+      type="nickname"
+      placeholder="点击填写微信昵称"
+      value="{{nickname}}"
+      bindinput="handleNicknameInput"
+    />
     <button
       class="login-btn"
       bindtap="handleWechatAuthorizeLogin"
       loading="{{submitting}}"
       disabled="{{submitting}}"
     >
-      {{submitting ? '登录中...' : '微信授权登录'}}
+      {{submitting ? '登录中...' : '微信登录'}}
     </button>
   </view>
 </view>

@@ -148,8 +148,8 @@ import QRCode from 'qrcode'
 import { Close, DocumentCopy, Download, Select } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { TableInstance } from 'element-plus'
+import { getLocationList, NodeType } from '@/api/location'
 import type { HospitalNode } from '@/api/location'
-import { NodeType } from '@/api/location'
 
 const nodeTypeList = [
   { value: NodeType.ENTRANCE, label: '入口' },
@@ -165,7 +165,6 @@ const nodeTypeList = [
   { value: NodeType.BEDROOM, label: '病房' }
 ]
 
-const mockLocationList = ref<HospitalNode[]>([])
 const loading = ref(false)
 const nodes = ref<HospitalNode[]>([])
 const selectedNodes = ref<HospitalNode[]>([])
@@ -206,27 +205,26 @@ const getNodeTypeTagType = (type: string) => {
   return tagTypes[type] || ''
 }
 
-const initMockData = () => {
-  const types = Object.values(NodeType)
-  const names = ['大厅', '挂号大厅', '内科诊室', '外科诊室', '药房', '卫生间', '电梯间', '楼梯间', '入口', '护士站', '检查室', '病房']
-
-  for (let i = 1; i <= 30; i += 1) {
-    mockLocationList.value.push({
-      id: i,
-      nodeCode: `NODE${String(i).padStart(3, '0')}`,
-      nodeName: `${names[i % names.length]} ${i}`,
-      floor: Math.floor(Math.random() * 5) + 1,
-      xCoordinate: Math.round(Math.random() * 1000) / 10,
-      yCoordinate: Math.round(Math.random() * 1000) / 10,
-      nodeType: types[i % types.length],
-      description: `这是 ${names[i % names.length]} ${i} 的节点资料。`,
-      createdAt: '2024-01-01 10:00:00',
-      updatedAt: '2024-01-01 10:00:00'
-    })
+const loadNodes = async () => {
+  loading.value = true
+  try {
+    const response = await getLocationList()
+    const items = Array.isArray(response) ? response : []
+    nodes.value = items
+      .filter(node => node?.nodeCode)
+      .sort((left, right) => {
+        const leftCode = left.nodeCode ?? ''
+        const rightCode = right.nodeCode ?? ''
+        return leftCode.localeCompare(rightCode)
+      })
+    pagination.value.total = nodes.value.length
+    clearSelection()
+  } catch (error) {
+    console.error('加载节点列表失败:', error)
+    ElMessage.error('加载节点列表失败')
+  } finally {
+    loading.value = false
   }
-
-  nodes.value = [...mockLocationList.value]
-  pagination.value.total = nodes.value.length
 }
 
 const handleSelectionChange = (rows: HospitalNode[]) => {
@@ -378,7 +376,7 @@ const handleCurrentChange = (page: number) => {
 }
 
 onMounted(() => {
-  initMockData()
+  loadNodes()
 })
 </script>
 
@@ -479,12 +477,6 @@ onMounted(() => {
   --el-table-header-bg-color: rgba(47, 111, 159, 0.05);
   --el-table-row-hover-bg-color: rgba(47, 111, 159, 0.04);
   background: transparent;
-}
-
-.code-text {
-  color: #204d70;
-  font-weight: 600;
-  letter-spacing: 0.04em;
 }
 
 .pagination-wrapper {
