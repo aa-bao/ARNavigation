@@ -4,6 +4,30 @@ import { getNavigationSession } from '../../services/navigation-session.js';
 
 const app = getApp();
 
+const getRecommendedFloor = ({ currentNode, destination, segmentEndNode, mode }) => {
+  const currentFloor = Number(currentNode?.floor ?? currentNode?.floorNumber);
+  const destinationFloor = Number(destination?.floor);
+  const nextFloor = Number(segmentEndNode?.floor);
+
+  if (mode === 'navigation' && Number.isFinite(currentFloor)) {
+    return currentFloor;
+  }
+
+  if (Number.isFinite(nextFloor)) {
+    return nextFloor;
+  }
+
+  if (Number.isFinite(currentFloor)) {
+    return currentFloor;
+  }
+
+  if (Number.isFinite(destinationFloor)) {
+    return destinationFloor;
+  }
+
+  return 1;
+};
+
 const resolvePreferredFloor = ({ currentNode, currentLocation, destination }) => {
   const preferred = Number(
     currentNode?.floor
@@ -25,9 +49,11 @@ Page({
     imagePath: '',
     floorOptions: MAP_FLOOR_OPTIONS,
     currentNode: null,
+    segmentEndNode: null,
     destination: null,
     markers: [],
     currentSummary: '尚未定位',
+    segmentEndSummary: '暂无导航段终点',
     destinationSummary: '尚未选择',
     guidanceText: '切换楼层查看医院布局。',
     errorText: '',
@@ -65,23 +91,28 @@ Page({
   syncView() {
     const session = getNavigationSession(app);
     const currentNode = session?.currentScannedNode || app.globalData.currentLocation || null;
+    const segmentEndNode = session?.segmentEndNode || null;
     const destination = session?.destination || app.globalData.destination || null;
-    const preferredFloor = resolvePreferredFloor({
+    const preferredFloor = getRecommendedFloor({
       currentNode,
-      currentLocation: app.globalData.currentLocation,
-      destination
+      destination,
+      segmentEndNode,
+      mode: this.data.mapMode
     });
     const activeOption = this.resolveActiveOption(preferredFloor);
 
     this.currentNode = currentNode;
+    this.segmentEndNode = segmentEndNode;
     this.destination = destination;
 
     this.setActiveOption(activeOption, {
       currentNode,
+      segmentEndNode,
       destination
     });
     this.renderMarkers(activeOption, {
       currentNode,
+      segmentEndNode,
       destination
     });
   },
@@ -96,8 +127,10 @@ Page({
 
   setActiveOption(option, state = {}) {
     const currentNode = state.currentNode ?? this.currentNode ?? null;
+    const segmentEndNode = state.segmentEndNode ?? this.segmentEndNode ?? null;
     const destination = state.destination ?? this.destination ?? null;
     const currentFloor = Number(currentNode?.floor ?? currentNode?.floorNumber);
+    const segmentEndFloor = Number(segmentEndNode?.floor);
     const destinationFloor = Number(destination?.floor);
 
     let guidanceText = this.data.mapMode === 'navigation'
@@ -106,8 +139,10 @@ Page({
     let errorText = '';
 
     if (option.type === MAP_VIEW_TYPES.FLOOR) {
-      if (destinationFloor && currentFloor && destinationFloor !== currentFloor) {
-        guidanceText = `您当前位于 ${currentFloor}F，目的地位于 ${destinationFloor}F，请先换层。`;
+      if (this.data.mapMode === 'navigation' && segmentEndFloor && option.floor !== segmentEndFloor) {
+        guidanceText = `当前导航段终点位于 ${segmentEndFloor}F，请切换后查看下一校准点。`;
+      } else if (destinationFloor && currentFloor && destinationFloor !== currentFloor) {
+        guidanceText = `您当前位于 ${currentFloor}F，目的地位于 ${destinationFloor}F，请先前往电梯或楼梯换层。`;
       } else if (destinationFloor && option.floor !== destinationFloor && this.data.mapMode === 'navigation') {
         guidanceText = `当前查看 ${option.floor}F，目的地点位于 ${destinationFloor}F。`;
       }
@@ -129,12 +164,14 @@ Page({
       errorText,
       imageErrorText: '',
       currentSummary: currentNode?.nodeName || currentNode?.name || '尚未定位',
+      segmentEndSummary: segmentEndNode?.nodeName || '暂无导航段终点',
       destinationSummary: destination?.nodeName || destination?.name || '尚未选择'
     });
   },
 
   renderMarkers(option, state = {}) {
     const currentNode = state.currentNode ?? this.currentNode ?? null;
+    const segmentEndNode = state.segmentEndNode ?? this.segmentEndNode ?? null;
     const destination = state.destination ?? this.destination ?? null;
 
     if (option.type !== MAP_VIEW_TYPES.FLOOR) {
@@ -144,6 +181,7 @@ Page({
 
     const markers = [
       buildMapMarker(currentNode, 'CURRENT', option),
+      buildMapMarker(segmentEndNode, 'SEGMENT_END', option),
       buildMapMarker(destination, 'DESTINATION', option)
     ].filter(Boolean).filter((item) => item.floor === option.floor);
 

@@ -50,5 +50,9 @@
       <text class="summary-label">目的地</text>
       <text class="summary-value">{{destinationSummary}}</text>
     </view>
+    <view class="summary-row" wx:if="{{mapMode === 'navigation'}}">
+      <text class="summary-label">下一校准点</text>
+      <text class="summary-value">{{segmentEndSummary}}</text>
+    </view>
   </view>
 </view>

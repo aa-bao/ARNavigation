@@ -52,6 +52,11 @@
               <el-option v-for="type in typeOptions" :key="type.value" :label="type.label" :value="type.value" />
             </el-select>
           </div>
+
+          <div class="filter-block">
+            <span class="filter-label">边线叠加</span>
+            <el-switch v-model="showEdges" :disabled="isOverview" />
+          </div>
         </div>
       </el-card>
 
@@ -68,6 +73,18 @@
 
         <div class="stage-shell">
           <img :src="activeOption?.imageUrl" class="stage-image" alt="地图预览" />
+
+          <svg v-if="!isOverview && showEdges" class="edge-layer" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <line
+              v-for="edge in projectedEdges"
+              :key="edge.id"
+              :x1="edge.x1"
+              :y1="edge.y1"
+              :x2="edge.x2"
+              :y2="edge.y2"
+              class="edge-line"
+            />
+          </svg>
 
           <div v-if="!isOverview" class="marker-layer">
             <button
@@ -119,16 +136,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { getLocationList, NodeType, type HospitalNode } from '@/api/location'
+import { computed, onMounted, ref, watch } from 'vue'
+import { getLocationEdges, getLocationList, NodeType, type HospitalEdge, type HospitalNode } from '@/api/location'
 import { getFloorMapOption, projectPlanarPointToMap } from '@/utils/mapProjector'
 import { MAP_OPTIONS, MAP_VIEW_TYPES, getMapOptionByKey } from '@/constants/maps'
 
 const keyword = ref('')
 const selectedType = ref('')
 const activeKey = ref('1F')
+const showEdges = ref(true)
 const selectedNode = ref<HospitalNode | null>(null)
 const nodes = ref<HospitalNode[]>([])
+const edges = ref<HospitalEdge[]>([])
 
 const typeOptions = [
   { value: NodeType.ENTRANCE, label: '入口' },
@@ -189,6 +208,52 @@ const projectedNodes = computed(() => {
     .filter(Boolean) as Array<{ id: string; leftPercent: number; topPercent: number; raw: HospitalNode }>
 })
 
+const projectedEdges = computed(() => {
+  if (isOverview.value || !showEdges.value || !activeOption.value?.floor) {
+    return []
+  }
+
+  const nodeMap = new Map<number, HospitalNode>()
+  filteredNodes.value.forEach((node) => {
+    if (node.id !== undefined) {
+      nodeMap.set(node.id, node)
+    }
+  })
+
+  return edges.value
+    .map((edge) => {
+      const fromNode = nodeMap.get(edge.fromNodeId)
+      const toNode = nodeMap.get(edge.toNodeId)
+      if (!fromNode || !toNode) {
+        return null
+      }
+
+      const from = projectPlanarPointToMap({
+        x: fromNode.xCoordinate,
+        y: fromNode.yCoordinate,
+        floor: fromNode.floor
+      })
+      const to = projectPlanarPointToMap({
+        x: toNode.xCoordinate,
+        y: toNode.yCoordinate,
+        floor: toNode.floor
+      })
+
+      if (!from || !to) {
+        return null
+      }
+
+      return {
+        id: edge.id ?? `${edge.fromNodeId}-${edge.toNodeId}`,
+        x1: from.leftPercent,
+        y1: from.topPercent,
+        x2: to.leftPercent,
+        y2: to.topPercent
+      }
+    })
+    .filter(Boolean) as Array<{ id: number | string; x1: number; y1: number; x2: number; y2: number }>
+})
+
 const floorSummary = computed(() =>
   [1, 2, 3].map((floor) => ({
     floor,
@@ -210,6 +275,26 @@ onMounted(async () => {
   if (defaultFloor) {
     activeKey.value = defaultFloor.key
   }
+  if (defaultFloor?.floor) {
+    edges.value = await getLocationEdges(defaultFloor.floor).catch(() => [])
+  }
+})
+
+watch(isOverview, (value) => {
+  if (value) {
+    showEdges.value = false
+  } else {
+    showEdges.value = true
+  }
+})
+
+watch(activeOption, async (option) => {
+  if (!option || option.type !== MAP_VIEW_TYPES.FLOOR || !option.floor) {
+    edges.value = []
+    return
+  }
+
+  edges.value = await getLocationEdges(option.floor).catch(() => [])
 })
 </script>
 
@@ -352,9 +437,16 @@ onMounted(async () => {
   background: #ffffff;
 }
 
+.edge-layer,
 .marker-layer {
   position: absolute;
   inset: 0;
+}
+
+.edge-line {
+  stroke: rgba(82, 96, 107, 0.78);
+  stroke-width: 0.35;
+  stroke-linecap: round;
 }
 
 .map-marker {
