@@ -35,9 +35,20 @@ export const projectPlanarPointToMap = ({ x, y, floor, config } = {}) => {
   const normalizedY = (pointY - MAP_COORDINATE_RANGE.minY)
     / (MAP_COORDINATE_RANGE.maxY - MAP_COORDINATE_RANGE.minY);
 
+  const plotArea = resolvedConfig.plotArea || {
+    left: 0,
+    right: 1,
+    top: 0,
+    bottom: 1
+  };
+  const clampedX = clamp(normalizedX);
+  const clampedY = clamp(normalizedY);
+  const width = plotArea.right - plotArea.left;
+  const height = plotArea.bottom - plotArea.top;
+
   return {
-    leftPercent: clamp(normalizedX) * 100,
-    topPercent: (1 - clamp(normalizedY)) * 100
+    leftPercent: (plotArea.left + clampedX * width) * 100,
+    topPercent: (plotArea.top + (1 - clampedY) * height) * 100
   };
 };
 

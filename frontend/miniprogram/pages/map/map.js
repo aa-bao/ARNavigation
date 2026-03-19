@@ -175,7 +175,10 @@ Page({
     const destination = state.destination ?? this.destination ?? null;
 
     if (option.type !== MAP_VIEW_TYPES.FLOOR) {
-      this.setData({ markers: [] });
+      this.setData({
+        markers: [],
+        errorText: ''
+      });
       return;
     }
 
@@ -187,9 +190,7 @@ Page({
 
     this.setData({
       markers,
-      errorText: markers.length
-        ? ''
-        : (this.data.errorText || '当前楼层暂无可展示点位，可切换楼层查看。')
+      errorText: this.data.errorText || ''
     });
   }
 });

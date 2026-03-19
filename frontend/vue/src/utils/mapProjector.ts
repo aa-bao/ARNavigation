@@ -31,9 +31,12 @@ export const projectPlanarPointToMap = ({
 
   const normalizedX = (pointX - MAP_RANGE.minX) / (MAP_RANGE.maxX - MAP_RANGE.minX)
   const normalizedY = (pointY - MAP_RANGE.minY) / (MAP_RANGE.maxY - MAP_RANGE.minY)
+  const plotArea = option.plotArea ?? { left: 0, right: 1, top: 0, bottom: 1 }
+  const width = plotArea.right - plotArea.left
+  const height = plotArea.bottom - plotArea.top
 
   return {
-    leftPercent: clamp(normalizedX) * 100,
-    topPercent: (1 - clamp(normalizedY)) * 100
+    leftPercent: (plotArea.left + clamp(normalizedX) * width) * 100,
+    topPercent: (plotArea.top + (1 - clamp(normalizedY)) * height) * 100
   }
 }
