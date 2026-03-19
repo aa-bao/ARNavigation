@@ -63,75 +63,44 @@
   color: #ffffff;
 }
 
-.map-card {
-  position: relative;
-}
-
 .map-stage {
-  position: relative;
-}
-
-.map-image {
   width: 100%;
+  overflow: hidden;
   border-radius: 20rpx;
   background: #f8fafc;
 }
 
-.marker-layer {
-  position: absolute;
-  inset: 0;
+.map-canvas {
+  display: block;
+  width: 100%;
 }
 
-.marker {
-  position: absolute;
-  transform: translate(-50%, -50%);
+.legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18rpx;
+  margin-top: 20rpx;
 }
 
-.marker-dot {
-  width: 24rpx;
-  height: 24rpx;
-  border-radius: 50%;
-  border: 4rpx solid #ffffff;
-  box-shadow: 0 0 0 8rpx rgba(15, 23, 42, 0.08);
-}
-
-.marker-CURRENT .marker-dot {
-  background: #2563eb;
-  animation: pulse 2.2s ease-in-out infinite;
-}
-
-.marker-DESTINATION .marker-dot {
-  background: #dc2626;
-}
-
-.marker-SEGMENT_END .marker-dot {
-  background: #d97706;
-}
-
-.marker-label {
-  display: inline-block;
-  margin-top: 12rpx;
-  padding: 8rpx 12rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.94);
-  color: #0f172a;
-  font-size: 22rpx;
-  white-space: nowrap;
-}
-
-.overview-tip,
-.state-card text {
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10rpx;
   color: #475569;
-  font-size: 24rpx;
-  line-height: 1.7;
+  font-size: 22rpx;
 }
 
-.overview-tip {
-  margin-top: 18rpx;
+.legend-dot {
+  width: 18rpx;
+  height: 18rpx;
+  border-radius: 50%;
 }
 
 .state-card {
-  padding: 12rpx 0;
+  margin-top: 18rpx;
+  color: #475569;
+  font-size: 24rpx;
+  line-height: 1.7;
 }
 
 .summary-row {
@@ -156,17 +125,4 @@
   font-size: 26rpx;
   font-weight: 600;
   text-align: right;
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-
-  50% {
-    transform: scale(1.16);
-    opacity: 0.72;
-  }
 }

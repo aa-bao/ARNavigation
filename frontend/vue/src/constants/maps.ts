@@ -1,8 +1,3 @@
-import floor1Image from '@/assets/maps/Hospital_Layout_Floor_1.png'
-import floor2Image from '@/assets/maps/Hospital_Layout_Floor_2.png'
-import floor3Image from '@/assets/maps/Hospital_Layout_Floor_3.png'
-import overviewImage from '@/assets/maps/hospital_3d_layout.png'
-
 export const MAP_RANGE = Object.freeze({
   minX: -8,
   maxX: 48,
@@ -10,24 +5,51 @@ export const MAP_RANGE = Object.freeze({
   maxY: 35
 })
 
-export const MAP_VIEW_TYPES = Object.freeze({
-  FLOOR: 'floor',
-  OVERVIEW: 'overview'
+export const MAP_VIEWPORT = Object.freeze({
+  width: 960,
+  height: 660,
+  padding: Object.freeze({
+    top: 72,
+    right: 88,
+    bottom: 72,
+    left: 88
+  })
 })
 
-const DEFAULT_PLOT_AREA = Object.freeze({
-  left: 0.16,
-  right: 0.815,
-  top: 0.165,
-  bottom: 0.835
+export const MAP_FLOOR_OPTIONS = Object.freeze([
+  { key: '1F', floor: 1, title: '1F 平面图' },
+  { key: '2F', floor: 2, title: '2F 平面图' },
+  { key: '3F', floor: 3, title: '3F 平面图' }
+])
+
+export const NODE_TYPE_META = Object.freeze({
+  ENTRANCE: { label: '入口', color: '#059669' },
+  NORMAL: { label: '普通节点', color: '#64748b' },
+  ELEVATOR: { label: '电梯', color: '#2563eb' },
+  STAIR: { label: '楼梯', color: '#d97706' },
+  TOILET: { label: '卫生间', color: '#dc2626' },
+  PHARMACY: { label: '药房', color: '#7c3aed' },
+  REGISTRATION: { label: '挂号', color: '#0f766e' },
+  CLINIC: { label: '诊室', color: '#db2777' },
+  EXAMINATION: { label: '检查区', color: '#be123c' },
+  NURSE_STATION: { label: '护士站', color: '#0891b2' },
+  BEDROOM: { label: '病房', color: '#1d4ed8' }
 })
 
-export const MAP_OPTIONS = [
-  { key: '1F', floor: 1, type: MAP_VIEW_TYPES.FLOOR, title: '1F 平面图', imageUrl: floor1Image, plotArea: DEFAULT_PLOT_AREA },
-  { key: '2F', floor: 2, type: MAP_VIEW_TYPES.FLOOR, title: '2F 平面图', imageUrl: floor2Image, plotArea: DEFAULT_PLOT_AREA },
-  { key: '3F', floor: 3, type: MAP_VIEW_TYPES.FLOOR, title: '3F 平面图', imageUrl: floor3Image, plotArea: DEFAULT_PLOT_AREA },
-  { key: '3D', floor: null, type: MAP_VIEW_TYPES.OVERVIEW, title: '3D 总览', imageUrl: overviewImage }
-] as const
+export const MARKER_META = Object.freeze({
+  CURRENT: { label: '当前位置', color: '#2563eb' },
+  DESTINATION: { label: '目的地', color: '#dc2626' },
+  SEGMENT_END: { label: '下一校准点', color: '#d97706' }
+})
 
-export const getMapOptionByKey = (key: string) =>
-  MAP_OPTIONS.find(item => item.key === key) ?? null
+export const getFloorOptionByKey = (key: string) =>
+  MAP_FLOOR_OPTIONS.find(item => item.key === key) ?? MAP_FLOOR_OPTIONS[0]
+
+export const getFloorOption = (floor: number | string | null | undefined) =>
+  MAP_FLOOR_OPTIONS.find(item => item.floor === Number(floor)) ?? null
+
+export const getNodeTypeMeta = (type: string | null | undefined) =>
+  NODE_TYPE_META[type as keyof typeof NODE_TYPE_META] ?? NODE_TYPE_META.NORMAL
+
+export const getMarkerMeta = (kind: string | null | undefined) =>
+  MARKER_META[kind as keyof typeof MARKER_META] ?? MARKER_META.CURRENT

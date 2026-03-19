@@ -4,12 +4,14 @@
       <div>
         <p class="hero-kicker">Hospital Map</p>
         <h1>医院地图预览</h1>
-        <p class="hero-text">校验楼层底图与数据库坐标的一致性，快速查看点位分布和节点详情。</p>
+        <p class="hero-text">直接使用节点与边数据绘制楼层图，用于校验坐标、连线和点位分布。</p>
       </div>
       <div class="hero-summary">
-        <span>当前视图 {{ activeOption?.title || '-' }}</span>
+        <span>当前楼层 {{ activeFloorOption.title }}</span>
         <span class="summary-divider"></span>
-        <span>节点 {{ filteredNodes.length }}</span>
+        <span>节点 {{ scene.nodes.length }}</span>
+        <span class="summary-divider"></span>
+        <span>边 {{ scene.edges.length }}</span>
       </div>
     </section>
 
@@ -26,10 +28,10 @@
 
         <div class="filter-stack">
           <div class="filter-block">
-            <span class="filter-label">地图视图</span>
+            <span class="filter-label">楼层</span>
             <div class="chip-row">
               <button
-                v-for="option in mapOptions"
+                v-for="option in MAP_FLOOR_OPTIONS"
                 :key="option.key"
                 class="chip"
                 :class="{ active: option.key === activeKey }"
@@ -54,8 +56,17 @@
           </div>
 
           <div class="filter-block">
-            <span class="filter-label">边线叠加</span>
-            <el-switch v-model="showEdges" :disabled="isOverview" />
+            <span class="filter-label">边线显示</span>
+            <el-switch v-model="showEdges" />
+          </div>
+
+          <div class="filter-block">
+            <span class="filter-label">楼层摘要</span>
+            <div class="summary-pills">
+              <span v-for="item in floorSummary" :key="item.floor" class="summary-pill">
+                {{ item.floor }}F {{ item.count }}
+              </span>
+            </div>
           </div>
         </div>
       </el-card>
@@ -64,48 +75,55 @@
         <template #header>
           <div class="panel-header">
             <div>
-              <p class="panel-kicker">Preview Stage</p>
-              <h2>{{ activeOption?.title || '地图预览' }}</h2>
+              <p class="panel-kicker">Scene</p>
+              <h2>{{ activeFloorOption.title }}</h2>
             </div>
-            <span class="header-summary">{{ overviewHint }}</span>
+            <span class="header-summary">SVG 数据驱动绘制</span>
           </div>
         </template>
 
-        <div class="stage-shell">
-          <img :src="activeOption?.imageUrl" class="stage-image" alt="地图预览" />
+        <div v-loading="loading" class="stage-shell">
+          <div v-if="errorText" class="empty-copy">{{ errorText }}</div>
 
-          <svg v-if="!isOverview && showEdges" class="edge-layer" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <line
-              v-for="edge in projectedEdges"
-              :key="edge.id"
-              :x1="edge.x1"
-              :y1="edge.y1"
-              :x2="edge.x2"
-              :y2="edge.y2"
-              class="edge-line"
-            />
+          <svg
+            v-else
+            class="map-stage"
+            :viewBox="`0 0 ${scene.width} ${scene.height}`"
+            role="img"
+            aria-label="医院楼层地图"
+          >
+            <rect class="map-board" x="0" y="0" :width="scene.width" :height="scene.height" rx="28" />
+
+            <g class="grid-layer">
+              <line v-for="x in scene.gridX" :key="`x-${x}`" :x1="x" y1="72" :x2="x" y2="588" />
+              <line v-for="y in scene.gridY" :key="`y-${y}`" x1="88" :y1="y" x2="872" :y2="y" />
+            </g>
+
+            <g v-if="showEdges" class="edge-layer">
+              <line
+                v-for="edge in scene.edges"
+                :key="edge.id"
+                :x1="edge.x1"
+                :y1="edge.y1"
+                :x2="edge.x2"
+                :y2="edge.y2"
+              />
+            </g>
+
+            <g class="node-layer">
+              <g
+                v-for="node in filteredNodes"
+                :key="node.id"
+                class="node-group"
+                :class="{ active: selectedNode?.id === node.raw.id }"
+                @click="selectedNode = node.raw"
+              >
+                <circle :cx="node.renderX" :cy="node.renderY" r="8" :fill="node.color" />
+                <circle :cx="node.renderX" :cy="node.renderY" r="14" class="node-ring" />
+                <text :x="node.renderX" :y="node.renderY - 18" text-anchor="middle">{{ node.label }}</text>
+              </g>
+            </g>
           </svg>
-
-          <div v-if="!isOverview" class="marker-layer">
-            <button
-              v-for="node in projectedNodes"
-              :key="node.id"
-              class="map-marker"
-              :class="{ active: selectedNode?.id === node.raw.id }"
-              :style="{ left: `${node.leftPercent}%`, top: `${node.topPercent}%` }"
-              @click="selectedNode = node.raw"
-            >
-              <span class="marker-dot"></span>
-              <span class="marker-copy">{{ node.raw.nodeName }}</span>
-            </button>
-          </div>
-
-          <div v-else class="overview-copy">
-            <p>3D 总览仅供楼层关系参考，不做精确点位叠加。</p>
-            <ul>
-              <li v-for="item in floorSummary" :key="item.floor">{{ item.floor }}F：{{ item.count }} 个节点</li>
-            </ul>
-          </div>
         </div>
       </el-card>
 
@@ -129,7 +147,7 @@
           <div class="detail-item"><span>节点类型</span><strong>{{ typeLabel(selectedNode.nodeType) }}</strong></div>
           <div class="detail-copy">{{ selectedNode.description || '暂无描述' }}</div>
         </div>
-        <div v-else class="empty-copy">点击地图上的点位查看节点详情。</div>
+        <div v-else class="empty-copy">点击地图中的点位查看节点详情。</div>
       </el-card>
     </div>
   </div>
@@ -137,15 +155,17 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { getLocationEdges, getLocationList, NodeType, type HospitalEdge, type HospitalNode } from '@/api/location'
-import { getFloorMapOption, projectPlanarPointToMap } from '@/utils/mapProjector'
-import { MAP_OPTIONS, MAP_VIEW_TYPES, getMapOptionByKey } from '@/constants/maps'
+import { getLocationEdges, getLocationList, NodeType, type HospitalNode, type HospitalEdge } from '@/api/location'
+import { MAP_FLOOR_OPTIONS, getFloorOptionByKey, getNodeTypeMeta } from '@/constants/maps'
+import { buildMapScene } from '@/utils/mapProjector'
 
 const keyword = ref('')
 const selectedType = ref('')
 const activeKey = ref('1F')
 const showEdges = ref(true)
 const selectedNode = ref<HospitalNode | null>(null)
+const loading = ref(false)
+const errorText = ref('')
 const nodes = ref<HospitalNode[]>([])
 const edges = ref<HospitalEdge[]>([])
 
@@ -163,138 +183,61 @@ const typeOptions = [
   { value: NodeType.BEDROOM, label: '病房' }
 ]
 
-const mapOptions = MAP_OPTIONS
+const activeFloorOption = computed(() => getFloorOptionByKey(activeKey.value))
 
-const activeOption = computed(() => getMapOptionByKey(activeKey.value) ?? MAP_OPTIONS[0])
-const isOverview = computed(() => activeOption.value?.type === MAP_VIEW_TYPES.OVERVIEW)
-
-const typeLabel = (value: string) => typeOptions.find(item => item.value === value)?.label || value
+const scene = computed(() =>
+  buildMapScene({
+    floor: activeFloorOption.value.floor,
+    nodes: nodes.value,
+    edges: edges.value
+  })
+)
 
 const filteredNodes = computed(() => {
   const normalizedKeyword = keyword.value.trim().toLowerCase()
-  return nodes.value.filter((node) => {
+  return scene.value.nodes.filter((node) => {
     const matchesKeyword = !normalizedKeyword
-      || node.nodeName.toLowerCase().includes(normalizedKeyword)
-      || node.nodeCode.toLowerCase().includes(normalizedKeyword)
-    const matchesType = !selectedType.value || node.nodeType === selectedType.value
-    const matchesFloor = isOverview.value || node.floor === activeOption.value?.floor
-    return matchesKeyword && matchesType && matchesFloor
+      || node.raw.nodeName.toLowerCase().includes(normalizedKeyword)
+      || node.raw.nodeCode.toLowerCase().includes(normalizedKeyword)
+    const matchesType = !selectedType.value || node.raw.nodeType === selectedType.value
+    return matchesKeyword && matchesType
   })
-})
-
-const projectedNodes = computed(() => {
-  if (isOverview.value) {
-    return []
-  }
-
-  return filteredNodes.value
-    .map((node) => {
-      const projection = projectPlanarPointToMap({
-        x: node.xCoordinate,
-        y: node.yCoordinate,
-        floor: node.floor
-      })
-      if (!projection) {
-        return null
-      }
-
-      return {
-        id: `${node.id}-${node.nodeCode}`,
-        leftPercent: projection.leftPercent,
-        topPercent: projection.topPercent,
-        raw: node
-      }
-    })
-    .filter(Boolean) as Array<{ id: string; leftPercent: number; topPercent: number; raw: HospitalNode }>
-})
-
-const projectedEdges = computed(() => {
-  if (isOverview.value || !showEdges.value || !activeOption.value?.floor) {
-    return []
-  }
-
-  const nodeMap = new Map<number, HospitalNode>()
-  filteredNodes.value.forEach((node) => {
-    if (node.id !== undefined) {
-      nodeMap.set(node.id, node)
-    }
-  })
-
-  return edges.value
-    .map((edge) => {
-      const fromNode = nodeMap.get(edge.fromNodeId)
-      const toNode = nodeMap.get(edge.toNodeId)
-      if (!fromNode || !toNode) {
-        return null
-      }
-
-      const from = projectPlanarPointToMap({
-        x: fromNode.xCoordinate,
-        y: fromNode.yCoordinate,
-        floor: fromNode.floor
-      })
-      const to = projectPlanarPointToMap({
-        x: toNode.xCoordinate,
-        y: toNode.yCoordinate,
-        floor: toNode.floor
-      })
-
-      if (!from || !to) {
-        return null
-      }
-
-      return {
-        id: edge.id ?? `${edge.fromNodeId}-${edge.toNodeId}`,
-        x1: from.leftPercent,
-        y1: from.topPercent,
-        x2: to.leftPercent,
-        y2: to.topPercent
-      }
-    })
-    .filter(Boolean) as Array<{ id: number | string; x1: number; y1: number; x2: number; y2: number }>
 })
 
 const floorSummary = computed(() =>
-  [1, 2, 3].map((floor) => ({
-    floor,
-    count: nodes.value.filter(node => node.floor === floor).length
+  MAP_FLOOR_OPTIONS.map(option => ({
+    floor: option.floor,
+    count: nodes.value.filter(node => node.floor === option.floor).length
   }))
 )
 
-const overviewHint = computed(() =>
-  isOverview.value
-    ? '总览视图只显示楼层摘要。'
-    : `当前楼层 ${activeOption.value?.floor}F，点击点位可查看节点详情。`
-)
+const typeLabel = (value: string) => getNodeTypeMeta(value).label
 
-onMounted(async () => {
-  const response = await getLocationList()
-  nodes.value = response
-  selectedNode.value = response[0] ?? null
-  const defaultFloor = getFloorMapOption(response[0]?.floor ?? 1)
-  if (defaultFloor) {
-    activeKey.value = defaultFloor.key
+const loadData = async () => {
+  loading.value = true
+  errorText.value = ''
+  try {
+    const [nodeList, edgeList] = await Promise.all([
+      getLocationList(),
+      getLocationEdges()
+    ])
+    nodes.value = nodeList
+    edges.value = edgeList
+  } catch (error) {
+    errorText.value = error instanceof Error ? error.message : '地图数据加载失败'
+  } finally {
+    loading.value = false
   }
-  if (defaultFloor?.floor) {
-    edges.value = await getLocationEdges(defaultFloor.floor).catch(() => [])
-  }
-})
+}
 
-watch(isOverview, (value) => {
-  if (value) {
-    showEdges.value = false
-  } else {
-    showEdges.value = true
+watch(activeKey, () => {
+  if (selectedNode.value?.floor !== activeFloorOption.value.floor) {
+    selectedNode.value = null
   }
 })
 
-watch(activeOption, async (option) => {
-  if (!option || option.type !== MAP_VIEW_TYPES.FLOOR || !option.floor) {
-    edges.value = []
-    return
-  }
-
-  edges.value = await getLocationEdges(option.floor).catch(() => [])
+onMounted(() => {
+  void loadData()
 })
 </script>
 
@@ -302,89 +245,78 @@ watch(activeOption, async (option) => {
 .page-shell {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .page-hero {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
   gap: 20px;
-  padding: 12px 4px 4px;
+  padding: 28px 32px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(32, 77, 112, 0.18), transparent 34%),
+    linear-gradient(135deg, #f9f4e8 0%, #f2f7f7 100%);
 }
 
 .hero-kicker,
 .panel-kicker {
-  margin: 0;
-  font-size: 11px;
-  letter-spacing: 0.16em;
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: #2f6f9f;
 }
 
 .page-hero h1,
 .panel-header h2 {
-  margin: 10px 0 0;
-  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-  font-weight: 600;
+  margin: 0;
   color: #1f2a33;
 }
 
-.page-hero h1 {
-  font-size: 42px;
-}
-
 .hero-text {
-  margin: 14px 0 0;
-  color: #66737d;
-  line-height: 1.8;
+  max-width: 680px;
+  margin: 10px 0 0;
+  color: #5f6d76;
+  line-height: 1.75;
 }
 
 .hero-summary {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  color: #66737d;
+  gap: 12px;
+  align-self: flex-start;
+  padding: 14px 18px;
+  border: 1px solid rgba(47, 111, 159, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #38556a;
   font-size: 13px;
 }
 
 .summary-divider {
-  width: 42px;
-  height: 1px;
-  background: rgba(91, 109, 122, 0.18);
+  width: 1px;
+  height: 16px;
+  background: rgba(56, 85, 106, 0.18);
 }
 
 .layout-grid {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 320px;
-  gap: 18px;
+  grid-template-columns: 280px minmax(0, 1fr) 280px;
+  gap: 24px;
 }
 
 .panel-card {
-  border: 1px solid rgba(91, 109, 122, 0.14);
-  background: rgba(255, 252, 247, 0.92);
-}
-
-:deep(.panel-card .el-card__header) {
-  padding: 20px 24px;
-  border-bottom: 1px solid rgba(91, 109, 122, 0.12);
-  background: rgba(255, 255, 255, 0.42);
-}
-
-:deep(.panel-card .el-card__body) {
-  padding: 24px;
+  border: 1px solid rgba(91, 109, 122, 0.12);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.88);
 }
 
 .panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-}
-
-.header-summary {
-  color: #697680;
-  font-size: 13px;
+  gap: 16px;
 }
 
 .filter-stack {
@@ -400,7 +332,7 @@ watch(activeOption, async (option) => {
 }
 
 .filter-label {
-  color: #31404a;
+  color: #5f6d76;
   font-size: 13px;
   font-weight: 600;
 }
@@ -408,102 +340,104 @@ watch(activeOption, async (option) => {
 .chip-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
 .chip {
   min-width: 72px;
-  padding: 10px 14px;
-  border: 1px solid rgba(91, 109, 122, 0.14);
-  background: rgba(255, 255, 255, 0.76);
-  color: #52606b;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #edf2f4;
+  color: #4c5d68;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .chip.active {
-  border-color: rgba(47, 111, 159, 0.3);
-  background: #fffdfa;
-  color: #204d70;
+  background: linear-gradient(135deg, #0f766e 0%, #2563eb 100%);
+  color: #fff;
+}
+
+.summary-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.summary-pill {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #f5f7f9;
+  color: #475569;
+  font-size: 12px;
+}
+
+.header-summary {
+  color: #64748b;
+  font-size: 13px;
 }
 
 .stage-shell {
-  position: relative;
+  min-height: 680px;
 }
 
-.stage-image {
+.map-stage {
   width: 100%;
-  display: block;
-  border: 1px solid rgba(91, 109, 122, 0.12);
-  background: #ffffff;
+  max-height: 680px;
 }
 
-.edge-layer,
-.marker-layer {
-  position: absolute;
-  inset: 0;
+.map-board {
+  fill: #f7fbff;
+  stroke: rgba(47, 111, 159, 0.18);
+  stroke-width: 1.5;
 }
 
-.edge-line {
-  stroke: rgba(82, 96, 107, 0.78);
-  stroke-width: 0.35;
+.grid-layer line {
+  stroke: rgba(148, 163, 184, 0.16);
+  stroke-width: 1;
+}
+
+.edge-layer line {
+  stroke: rgba(36, 67, 94, 0.46);
+  stroke-width: 5;
   stroke-linecap: round;
 }
 
-.map-marker {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  border: none;
-  background: transparent;
+.node-group {
   cursor: pointer;
 }
 
-.marker-dot {
-  display: block;
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  border: 3px solid #fff;
-  background: #2f6f9f;
-  box-shadow: 0 0 0 6px rgba(47, 111, 159, 0.14);
+.node-ring {
+  fill: rgba(255, 255, 255, 0.78);
+  stroke: rgba(15, 23, 42, 0.08);
+  stroke-width: 1;
 }
 
-.map-marker.active .marker-dot {
-  background: #c1661a;
-  box-shadow: 0 0 0 8px rgba(193, 102, 26, 0.16);
+.node-group text {
+  fill: #344556;
+  font-size: 16px;
+  font-weight: 600;
 }
 
-.marker-copy {
-  display: inline-block;
-  margin-top: 8px;
-  padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #22303a;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.overview-copy {
-  padding-top: 16px;
-  color: #66737d;
-  line-height: 1.8;
-}
-
-.overview-copy ul {
-  padding-left: 18px;
+.node-group.active .node-ring {
+  stroke: #0f172a;
+  stroke-width: 2;
 }
 
 .detail-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .detail-item {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  color: #52606b;
-  font-size: 13px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  color: #475569;
 }
 
 .detail-item strong {
@@ -513,13 +447,23 @@ watch(activeOption, async (option) => {
 
 .detail-copy,
 .empty-copy {
-  color: #66737d;
-  line-height: 1.8;
+  color: #64748b;
+  line-height: 1.7;
 }
 
 @media (max-width: 1320px) {
   .layout-grid {
     grid-template-columns: 1fr;
+  }
+
+  .stage-shell {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .page-hero {
+    flex-direction: column;
   }
 }
 </style>

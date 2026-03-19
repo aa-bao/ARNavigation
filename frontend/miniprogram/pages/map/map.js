@@ -1,6 +1,12 @@
-import { MAP_FLOOR_OPTIONS, MAP_VIEW_TYPES, getFloorMapConfig, getMapOptionByKey } from '../../services/map-data.js';
-import { buildMapMarker } from '../../utils/map-projector.js';
+import {
+  fetchMapEdges,
+  fetchMapNodes,
+  getMapOptionByKey,
+  MAP_FLOOR_OPTIONS,
+  MAP_VIEWPORT
+} from '../../services/map-data.js';
 import { getNavigationSession } from '../../services/navigation-session.js';
+import { buildMapScene } from '../../utils/map-projector.js';
 
 const app = getApp();
 
@@ -28,15 +34,29 @@ const getRecommendedFloor = ({ currentNode, destination, segmentEndNode, mode })
   return 1;
 };
 
-const resolvePreferredFloor = ({ currentNode, currentLocation, destination }) => {
-  const preferred = Number(
-    currentNode?.floor
-    ?? currentLocation?.floor
-    ?? currentLocation?.floorNumber
-    ?? destination?.floor
-  );
-  return Number.isFinite(preferred) ? preferred : 1;
+const resolveNodeName = (node, fallback) => node?.nodeName || node?.name || fallback;
+
+const getGuidanceText = ({ floor, mode, currentNode, destination, segmentEndNode }) => {
+  const currentFloor = Number(currentNode?.floor ?? currentNode?.floorNumber);
+  const destinationFloor = Number(destination?.floor);
+  const segmentFloor = Number(segmentEndNode?.floor);
+
+  if (mode === 'navigation' && Number.isFinite(segmentFloor) && segmentFloor !== floor) {
+    return `当前导航段终点位于 ${segmentFloor}F，切换楼层后可查看下一校准点。`;
+  }
+
+  if (Number.isFinite(currentFloor) && Number.isFinite(destinationFloor) && currentFloor !== destinationFloor) {
+    return `您当前位于 ${currentFloor}F，目标位于 ${destinationFloor}F，请优先前往电梯或楼梯换层。`;
+  }
+
+  if (mode === 'navigation') {
+    return '导航中，地图会同步显示当前位置、下一校准点和目标点。';
+  }
+
+  return '地图仅供参考，位置以二维码扫描为准。';
 };
+
+const getCanvasHeight = (width) => Math.round((width * MAP_VIEWPORT.height) / MAP_VIEWPORT.width);
 
 Page({
   data: {
@@ -45,29 +65,90 @@ Page({
     activeKey: '1F',
     activeTitle: '1F 平面图',
     activeFloor: 1,
-    isOverview: false,
-    imagePath: '',
     floorOptions: MAP_FLOOR_OPTIONS,
     currentNode: null,
     segmentEndNode: null,
     destination: null,
-    markers: [],
     currentSummary: '尚未定位',
-    segmentEndSummary: '暂无导航段终点',
+    segmentEndSummary: '暂无下一校准点',
     destinationSummary: '尚未选择',
-    guidanceText: '切换楼层查看医院布局。',
+    guidanceText: '地图仅供参考，位置以二维码扫描为准。',
+    loading: true,
     errorText: '',
-    imageErrorText: ''
+    canvasWidth: 320,
+    canvasHeight: getCanvasHeight(320),
+    legendItems: [
+      { key: 'CURRENT', label: '当前位置', color: '#2563eb' },
+      { key: 'DESTINATION', label: '目的地', color: '#dc2626' },
+      { key: 'SEGMENT_END', label: '下一校准点', color: '#d97706' }
+    ]
   },
 
   onLoad(query = {}) {
     const context = app.consumeMapViewContext?.() || null;
-    const mapMode = query.mode || context?.mode || 'browse';
-    this.setData({ mapMode });
+    this.mapNodes = [];
+    this.mapEdges = [];
+    this.renderTimer = null;
+    this.setData({
+      mapMode: query.mode || context?.mode || 'browse'
+    });
+  },
+
+  onReady() {
+    this.initializePage();
   },
 
   onShow() {
     this.syncView();
+  },
+
+  onUnload() {
+    if (this.renderTimer) {
+      clearTimeout(this.renderTimer);
+      this.renderTimer = null;
+    }
+  },
+
+  async initializePage() {
+    try {
+      await this.ensureCanvasSize();
+      await this.ensureMapData();
+      this.syncView();
+    } catch (error) {
+      this.setData({
+        loading: false,
+        errorText: error?.message || '地图数据加载失败'
+      });
+    }
+  },
+
+  async ensureMapData() {
+    if (this.mapNodes.length && this.mapEdges.length) {
+      return;
+    }
+
+    this.setData({ loading: true, errorText: '' });
+    const [nodes, edges] = await Promise.all([fetchMapNodes(), fetchMapEdges()]);
+    this.mapNodes = Array.isArray(nodes) ? nodes : [];
+    this.mapEdges = Array.isArray(edges) ? edges : [];
+    this.setData({ loading: false });
+  },
+
+  ensureCanvasSize() {
+    return new Promise((resolve) => {
+      wx.nextTick(() => {
+        const query = wx.createSelectorQuery().in(this);
+        query.select('.map-stage').boundingClientRect();
+        query.exec((result) => {
+          const rect = result && result[0];
+          const width = Math.max(Math.round(rect?.width || 320), 280);
+          this.setData({
+            canvasWidth: width,
+            canvasHeight: getCanvasHeight(width)
+          }, resolve);
+        });
+      });
+    });
   },
 
   handleFloorSwitch(event) {
@@ -78,14 +159,8 @@ Page({
     }
 
     this.setData({ hasCustomSelection: true });
-    this.setActiveOption(option);
-    this.renderMarkers(option);
-  },
-
-  handleImageError() {
-    this.setData({
-      imageErrorText: '地图资源加载失败，请稍后重试或切换其他楼层。'
-    });
+    this.applyActiveFloor(option);
+    this.scheduleRender();
   },
 
   syncView() {
@@ -99,98 +174,204 @@ Page({
       segmentEndNode,
       mode: this.data.mapMode
     });
-    const activeOption = this.resolveActiveOption(preferredFloor);
+    const option = this.resolveActiveOption(preferredFloor);
 
     this.currentNode = currentNode;
     this.segmentEndNode = segmentEndNode;
     this.destination = destination;
+    this.navigationSession = session;
 
-    this.setActiveOption(activeOption, {
+    this.applyActiveFloor(option, {
       currentNode,
       segmentEndNode,
       destination
     });
-    this.renderMarkers(activeOption, {
-      currentNode,
-      segmentEndNode,
-      destination
-    });
+    this.scheduleRender();
   },
 
   resolveActiveOption(preferredFloor) {
-    const currentOption = getMapOptionByKey(this.data.activeKey);
-    if (this.data.hasCustomSelection && currentOption) {
-      return currentOption;
+    if (this.data.hasCustomSelection) {
+      return getMapOptionByKey(this.data.activeKey);
     }
-    return getFloorMapConfig(preferredFloor) || MAP_FLOOR_OPTIONS[0];
+    return getMapOptionByKey(`${preferredFloor}F`);
   },
 
-  setActiveOption(option, state = {}) {
+  applyActiveFloor(option, state = {}) {
     const currentNode = state.currentNode ?? this.currentNode ?? null;
     const segmentEndNode = state.segmentEndNode ?? this.segmentEndNode ?? null;
     const destination = state.destination ?? this.destination ?? null;
-    const currentFloor = Number(currentNode?.floor ?? currentNode?.floorNumber);
-    const segmentEndFloor = Number(segmentEndNode?.floor);
-    const destinationFloor = Number(destination?.floor);
-
-    let guidanceText = this.data.mapMode === 'navigation'
-      ? '导航中，可随时回到指南针页继续前进。'
-      : '地图仅供参考，位置以二维码扫描为准。';
-    let errorText = '';
-
-    if (option.type === MAP_VIEW_TYPES.FLOOR) {
-      if (this.data.mapMode === 'navigation' && segmentEndFloor && option.floor !== segmentEndFloor) {
-        guidanceText = `当前导航段终点位于 ${segmentEndFloor}F，请切换后查看下一校准点。`;
-      } else if (destinationFloor && currentFloor && destinationFloor !== currentFloor) {
-        guidanceText = `您当前位于 ${currentFloor}F，目的地位于 ${destinationFloor}F，请先前往电梯或楼梯换层。`;
-      } else if (destinationFloor && option.floor !== destinationFloor && this.data.mapMode === 'navigation') {
-        guidanceText = `当前查看 ${option.floor}F，目的地点位于 ${destinationFloor}F。`;
-      }
-    } else {
-      guidanceText = '3D 总览仅用于楼层关系参考，不显示精确定位点。';
-    }
-
-    if (option.type === MAP_VIEW_TYPES.FLOOR && !getFloorMapConfig(option.floor)) {
-      errorText = '未找到该楼层的地图配置。';
-    }
 
     this.setData({
       activeKey: option.key,
       activeTitle: option.title,
       activeFloor: option.floor,
-      isOverview: option.type === MAP_VIEW_TYPES.OVERVIEW,
-      imagePath: option.imagePath,
-      guidanceText,
-      errorText,
-      imageErrorText: '',
-      currentSummary: currentNode?.nodeName || currentNode?.name || '尚未定位',
-      segmentEndSummary: segmentEndNode?.nodeName || '暂无导航段终点',
-      destinationSummary: destination?.nodeName || destination?.name || '尚未选择'
+      currentNode,
+      segmentEndNode,
+      destination,
+      currentSummary: resolveNodeName(currentNode, '尚未定位'),
+      segmentEndSummary: resolveNodeName(segmentEndNode, '暂无下一校准点'),
+      destinationSummary: resolveNodeName(destination, '尚未选择'),
+      guidanceText: getGuidanceText({
+        floor: option.floor,
+        mode: this.data.mapMode,
+        currentNode,
+        destination,
+        segmentEndNode
+      })
     });
   },
 
-  renderMarkers(option, state = {}) {
-    const currentNode = state.currentNode ?? this.currentNode ?? null;
-    const segmentEndNode = state.segmentEndNode ?? this.segmentEndNode ?? null;
-    const destination = state.destination ?? this.destination ?? null;
+  scheduleRender() {
+    if (this.renderTimer) {
+      clearTimeout(this.renderTimer);
+    }
 
-    if (option.type !== MAP_VIEW_TYPES.FLOOR) {
-      this.setData({
-        markers: [],
-        errorText: ''
-      });
+    this.renderTimer = setTimeout(() => {
+      this.renderTimer = null;
+      this.renderScene();
+    }, 40);
+  },
+
+  renderScene() {
+    if (this.data.errorText || !this.data.canvasWidth || !this.mapNodes.length) {
       return;
     }
 
-    const markers = [
-      buildMapMarker(currentNode, 'CURRENT', option),
-      buildMapMarker(segmentEndNode, 'SEGMENT_END', option),
-      buildMapMarker(destination, 'DESTINATION', option)
-    ].filter(Boolean).filter((item) => item.floor === option.floor);
+    const scene = buildMapScene({
+      floor: this.data.activeFloor,
+      nodes: this.mapNodes,
+      edges: this.mapEdges,
+      routePoints: this.navigationSession?.segmentPoints || [],
+      markerNodes: {
+        CURRENT: this.currentNode,
+        DESTINATION: this.destination,
+        SEGMENT_END: this.segmentEndNode
+      }
+    });
 
-    this.setData({
-      markers,
-      errorText: this.data.errorText || ''
+    const ctx = wx.createCanvasContext('floorCanvas', this);
+    const scaleX = this.data.canvasWidth / scene.width;
+    const scaleY = this.data.canvasHeight / scene.height;
+
+    ctx.clearRect(0, 0, this.data.canvasWidth, this.data.canvasHeight);
+    ctx.save();
+    ctx.scale(scaleX, scaleY);
+
+    this.drawBoard(ctx, scene);
+    this.drawGrid(ctx, scene);
+    this.drawEdges(ctx, scene);
+    this.drawRoute(ctx, scene);
+    this.drawNodes(ctx, scene);
+    this.drawMarkers(ctx, scene);
+
+    ctx.restore();
+    ctx.draw();
+  },
+
+  drawBoard(ctx, scene) {
+    ctx.setFillStyle('#f7fbff');
+    ctx.fillRect(0, 0, scene.width, scene.height);
+
+    ctx.setStrokeStyle('rgba(47, 111, 159, 0.18)');
+    ctx.setLineWidth(2);
+    ctx.strokeRect(1, 1, scene.width - 2, scene.height - 2);
+  },
+
+  drawGrid(ctx, scene) {
+    ctx.setStrokeStyle('rgba(148, 163, 184, 0.18)');
+    ctx.setLineWidth(1);
+
+    scene.gridX.forEach((x) => {
+      ctx.beginPath();
+      ctx.moveTo(x, MAP_VIEWPORT.padding.top);
+      ctx.lineTo(x, scene.height - MAP_VIEWPORT.padding.bottom);
+      ctx.stroke();
+    });
+
+    scene.gridY.forEach((y) => {
+      ctx.beginPath();
+      ctx.moveTo(MAP_VIEWPORT.padding.left, y);
+      ctx.lineTo(scene.width - MAP_VIEWPORT.padding.right, y);
+      ctx.stroke();
+    });
+  },
+
+  drawEdges(ctx, scene) {
+    ctx.setStrokeStyle('rgba(36, 67, 94, 0.44)');
+    ctx.setLineWidth(6);
+    ctx.setLineCap('round');
+
+    scene.edges.forEach((edge) => {
+      ctx.beginPath();
+      ctx.moveTo(edge.x1, edge.y1);
+      ctx.lineTo(edge.x2, edge.y2);
+      ctx.stroke();
+    });
+  },
+
+  drawRoute(ctx, scene) {
+    if (!scene.route.length) {
+      return;
+    }
+
+    ctx.setStrokeStyle('#16a34a');
+    ctx.setLineWidth(8);
+    ctx.setLineCap('round');
+    ctx.setLineJoin('round');
+
+    ctx.beginPath();
+    scene.route.forEach((point, index) => {
+      if (index === 0) {
+        ctx.moveTo(point.renderX, point.renderY);
+        return;
+      }
+      ctx.lineTo(point.renderX, point.renderY);
+    });
+    ctx.stroke();
+  },
+
+  drawNodes(ctx, scene) {
+    ctx.setFontSize(18);
+    scene.nodes.forEach((node) => {
+      ctx.setFillStyle(node.color);
+      ctx.beginPath();
+      ctx.arc(node.renderX, node.renderY, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.setStrokeStyle('rgba(15, 23, 42, 0.08)');
+      ctx.setLineWidth(1);
+      ctx.beginPath();
+      ctx.arc(node.renderX, node.renderY, 14, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.setFillStyle('#334155');
+      ctx.setTextAlign('center');
+      ctx.fillText(node.label, node.renderX, node.renderY - 18);
+    });
+  },
+
+  drawMarkers(ctx, scene) {
+    ctx.setFontSize(18);
+    scene.markers.forEach((marker) => {
+      ctx.setStrokeStyle(marker.color);
+      ctx.setLineWidth(6);
+      ctx.beginPath();
+      ctx.arc(marker.renderX, marker.renderY, 18, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.setFillStyle('#ffffff');
+      ctx.beginPath();
+      ctx.arc(marker.renderX, marker.renderY, 11, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.setFillStyle(marker.color);
+      ctx.beginPath();
+      ctx.arc(marker.renderX, marker.renderY, 7, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.setFillStyle(marker.color);
+      ctx.setTextAlign('left');
+      ctx.fillText(marker.nodeName, marker.renderX + 22, marker.renderY + 6);
     });
   }
 });

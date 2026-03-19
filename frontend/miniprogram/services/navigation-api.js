@@ -11,6 +11,10 @@ export const getNavigationSegment = (startCode, targetId) => {
   });
 };
 
+export const getNavigationNodes = () => get('/navigation/nodes');
+
+export const getNavigationEdges = () => get('/navigation/edges');
+
 export const getDestinations = (params = {}) => get('/navigation/destinations', params);
 
 export const createNavigationHistory = (payload) => post('/navigation/recent', {

@@ -1,359 +1,132 @@
 # Map Feature Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> For agentic workers: use subagent-driven-development when tasks are independent. Vue and mini program rendering may proceed in parallel because they own disjoint files.
 
-**Goal:** Add a shared hospital map capability across the mini program and Vue admin app, including a bottom-tab map page, navigation-page map entry, realtime current/destination markers, and an admin preview page.
+**Goal:** Replace the PNG-based hospital map with frontend-rendered floor maps so node positions, current location, destination, and next calibration point all align directly with database coordinates.
 
-**Architecture:** The implementation will introduce one shared map configuration and planar-coordinate projection layer, then wire it into two frontends with different presentation goals. The mini program will consume global location/navigation state and render floor-plan overlays, while the Vue admin app will provide map validation and node preview tooling on top of the same projection rules.
+**Architecture:** Keep the existing navigation/session/backend APIs. Introduce a shared per-frontend map scene builder that normalizes node and edge coordinates into a fixed viewport. The Vue admin app renders the scene in SVG for inspection and filtering. The mini program renders the same scene in canvas for patient-facing map browsing during navigation.
 
-**Tech Stack:** WeChat Mini Program, Vue 3 + Element Plus, existing Spring Boot/MyBatis APIs when needed, shared JavaScript/TypeScript map helpers
+**Tech Stack:** WeChat Mini Program canvas, Vue 3 + Element Plus + SVG, existing Spring Boot navigation endpoints
 
 ---
 
-## Source of Truth
-
-- The canonical map projection source of truth is the shared config + projector pair:
-  - mini program: `frontend/miniprogram/services/map-data.js` + `frontend/miniprogram/utils/map-projector.js`
-  - Vue admin: `frontend/vue/src/constants/maps.ts` + `frontend/vue/src/utils/mapProjector.ts`
-- Both implementations must use the same floor ranges:
-  - `minX=-8`, `maxX=48`
-  - `minY=-20`, `maxY=35`
-- If a backend `GET /api/maps` endpoint is added later, it must match these values exactly and replace, not fork, the frontend constants.
-
 ## File Map
 
-### Shared map data and projection
+### Mini program
 
-- Create: `frontend/miniprogram/services/map-data.js`
-- Create: `frontend/miniprogram/utils/map-projector.js`
-- Create: `frontend/vue/src/constants/maps.ts`
-- Create: `frontend/vue/src/utils/mapProjector.ts`
-
-### Mini Program map feature
-
-- Modify: `frontend/miniprogram/app.json`
-- Modify: `frontend/miniprogram/pages/navigation/navigation.js`
-- Modify: `frontend/miniprogram/pages/navigation/navigation.wxml`
-- Modify: `frontend/miniprogram/pages/navigation/navigation.wxss`
-- Create: `frontend/miniprogram/pages/map/map.js`
-- Create: `frontend/miniprogram/pages/map/map.wxml`
-- Create: `frontend/miniprogram/pages/map/map.wxss`
-- Create: `frontend/miniprogram/pages/map/map.json`
-- Create: `frontend/miniprogram/images/map.png`
-- Create: `frontend/miniprogram/images/map-active.png`
-
-### Mini Program map assets
-
-- Create: `frontend/miniprogram/assets/maps/Hospital_Layout_Floor_1.png`
-- Create: `frontend/miniprogram/assets/maps/Hospital_Layout_Floor_2.png`
-- Create: `frontend/miniprogram/assets/maps/Hospital_Layout_Floor_3.png`
-- Create: `frontend/miniprogram/assets/maps/hospital_3d_layout.png`
-
-### Vue admin map preview
-
-- Modify: `frontend/vue/src/router/index.ts`
-- Modify: `frontend/vue/src/api/location.ts`
-- Create: `frontend/vue/src/views/location/HospitalMapView.vue`
-
-## Chunk 1: Shared map foundation
-
-### Task 1: Add shared map configuration and projection helpers
-
-**Files:**
-- Create: `frontend/miniprogram/services/map-data.js`
-- Create: `frontend/miniprogram/utils/map-projector.js`
-- Create: `frontend/vue/src/constants/maps.ts`
-- Create: `frontend/vue/src/utils/mapProjector.ts`
-
-- [ ] **Step 1: Write the projection invariants into the helper comments and plan notes**
-
-Document:
-- floor plans use `minX=-8`, `maxX=48`, `minY=-20`, `maxY=35`
-- `left = normalizedX`
-- `top = 1 - normalizedY`
-- out-of-range values clamp to `[0, 1]`
-- 3D overview is read-only and does not receive precise markers
-
-- [ ] **Step 2: Implement the mini program map config**
-
-Create a focused config module that exports:
-- floor-plan metadata for `1F`, `2F`, `3F`
-- the 3D overview entry
-- image paths that match packaged mini program assets
-
-- [ ] **Step 3: Implement the mini program projector helper**
-
-Add pure helpers for:
-- `getFloorMapConfig(floor)`
-- `projectPlanarPointToMap({ x, y, floor })`
-- `buildMapMarker(node, markerType)`
-
-- [ ] **Step 4: Mirror the same config and helper structure in Vue**
-
-Keep naming and formulae aligned with the mini program implementation so rendering stays consistent across both apps.
-
-- [ ] **Step 5: Run a manual logic sanity check**
-
-Verify with sample points:
-- `(0, 0)` projects to `left≈14.29%`, `top≈63.64%`
-- `(24, 12)` projects to `left≈57.14%`, `top≈41.82%`
-- missing floor returns no precise marker result
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add frontend/miniprogram/services/map-data.js frontend/miniprogram/utils/map-projector.js frontend/vue/src/constants/maps.ts frontend/vue/src/utils/mapProjector.ts
-git commit -m "feat: add shared map projection helpers"
-```
-
-## Chunk 2: Mini Program map page and tab integration
-
-### Task 2: Add the map tab and map page shell
-
-**Files:**
-- Modify: `frontend/miniprogram/app.json`
-- Create: `frontend/miniprogram/pages/map/map.js`
-- Create: `frontend/miniprogram/pages/map/map.wxml`
-- Create: `frontend/miniprogram/pages/map/map.wxss`
-- Create: `frontend/miniprogram/pages/map/map.json`
-- Create: `frontend/miniprogram/images/map.png`
-- Create: `frontend/miniprogram/images/map-active.png`
-- Create: `frontend/miniprogram/assets/maps/Hospital_Layout_Floor_1.png`
-- Create: `frontend/miniprogram/assets/maps/Hospital_Layout_Floor_2.png`
-- Create: `frontend/miniprogram/assets/maps/Hospital_Layout_Floor_3.png`
-- Create: `frontend/miniprogram/assets/maps/hospital_3d_layout.png`
-
-- [ ] **Step 1: Write the failing manual acceptance checklist**
-
-Expected behavior:
-- bottom tab includes `地图`
-- map page opens without location state
-- 1F/2F/3F/3D tabs are visible
-- floor-plan image renders
-- 3D overview opens in read-only mode
-
-- [ ] **Step 2: Package the map assets into the mini program**
-
-Copy the provided PNG files into a dedicated `assets/maps` directory under the mini program.
-
-- [ ] **Step 3: Add the map page and register it in `app.json`**
-
-Update the page list and tab bar so the mini program exposes:
-- 首页
-- 地图
-- 我的
-
-- [ ] **Step 4: Build the map page shell**
-
-Implement:
-- current view mode detection
-- floor switching
-- image loading state
-- read-only 3D overview state
-- fallback messaging for missing config or image-load failure
-
-- [ ] **Step 5: Manual verification in Mini Program DevTools**
-
-Expected:
-- tab bar shows the new entry
-- page loads with floor switching
-- image errors degrade to text instead of blank UI
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add frontend/miniprogram/app.json frontend/miniprogram/pages/map/map.js frontend/miniprogram/pages/map/map.wxml frontend/miniprogram/pages/map/map.wxss frontend/miniprogram/pages/map/map.json frontend/miniprogram/images/map.png frontend/miniprogram/images/map-active.png frontend/miniprogram/assets/maps/Hospital_Layout_Floor_1.png frontend/miniprogram/assets/maps/Hospital_Layout_Floor_2.png frontend/miniprogram/assets/maps/Hospital_Layout_Floor_3.png frontend/miniprogram/assets/maps/hospital_3d_layout.png
-git commit -m "feat: add mini program map tab"
-```
-
-### Task 3: Render current and destination markers in the mini program
-
-**Files:**
+- Modify: `frontend/miniprogram/services/map-data.js`
+- Modify: `frontend/miniprogram/utils/map-projector.js`
+- Modify: `frontend/miniprogram/services/navigation-api.js`
 - Modify: `frontend/miniprogram/pages/map/map.js`
 - Modify: `frontend/miniprogram/pages/map/map.wxml`
 - Modify: `frontend/miniprogram/pages/map/map.wxss`
 
-- [ ] **Step 1: Define the v1 marker acceptance behavior**
+### Vue admin
 
-Expected behavior:
-- if `currentLocation` exists, the current marker renders on its floor plan
-- if `destination` exists, the destination marker renders on its floor plan
-- if the user is on a different floor, the page shows floor-summary text instead of forcing a wrong marker
-- 3D overview shows summary text only, no precise markers
+- Modify: `frontend/vue/src/constants/maps.ts`
+- Modify: `frontend/vue/src/utils/mapProjector.ts`
+- Modify: `frontend/vue/src/views/location/HospitalMapView.vue`
 
-- [ ] **Step 2: Read global app state and navigation session**
+### No backend changes planned
 
-Use:
-- `app.globalData.currentLocation`
-- `app.globalData.destination`
-- `app.globalData.navigationSession`
+- Reuse: `GET /api/navigation/nodes`
+- Reuse: `GET /api/navigation/edges`
 
-Prioritize the session current node when available.
+---
 
-- [ ] **Step 3: Convert nodes into projected markers**
+## Chunk 1: Replace shared map model assumptions
 
-Use the shared projector helper to build render-ready marker data for:
-- `CURRENT`
-- `DESTINATION`
-
-- [ ] **Step 4: Render overlay markers and state cards**
-
-Implement an absolutely-positioned overlay layer and summary cards that show:
-- current location name
-- destination name
-- current floor
-- target floor
-- floor mismatch guidance
-
-- [ ] **Step 5: Manual verification in Mini Program DevTools**
-
-Expected:
-- current marker appears after a successful QR scan
-- destination marker appears after selecting a destination
-- switching floors hides markers that do not belong to the current floor
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add frontend/miniprogram/pages/map/map.js frontend/miniprogram/pages/map/map.wxml frontend/miniprogram/pages/map/map.wxss
-git commit -m "feat: render mini program map markers"
-```
-
-### Task 4: Add the navigation-page entry into the map feature
+### Task 1: Remove PNG projection assumptions from map helpers
 
 **Files:**
-- Modify: `frontend/miniprogram/pages/navigation/navigation.js`
-- Modify: `frontend/miniprogram/pages/navigation/navigation.wxml`
-- Modify: `frontend/miniprogram/pages/navigation/navigation.wxss`
+- `frontend/miniprogram/services/map-data.js`
+- `frontend/miniprogram/utils/map-projector.js`
+- `frontend/vue/src/constants/maps.ts`
+- `frontend/vue/src/utils/mapProjector.ts`
 
-- [ ] **Step 1: Add the failing manual acceptance note**
+- [ ] Replace image-path and plot-area based config with floor metadata, viewport dimensions, padding, and node/marker styling constants.
+- [ ] Keep only `1F / 2F / 3F` floor options in the runtime renderer.
+- [ ] Implement coordinate normalization from database `x_coordinate/y_coordinate` into viewport coordinates.
+- [ ] Implement render-scene builders that return floor nodes, floor edges, optional route points, and marker positions.
+- [ ] Preserve compatibility with existing node payload shapes used by both apps.
 
-Expected behavior:
-- navigation page shows a `查看地图` action
-- tapping it opens the map page in navigation mode
-- map page reuses the existing session and does not rebuild routing state
+**Verification**
+- [ ] Sanity-check `(0,0)`, `(24,12)`, and one negative-y node project inside viewport bounds.
 
-- [ ] **Step 2: Add a navigation-to-map action in `navigation.js`**
+---
 
-Use a normal page jump with mode parameters instead of a new route-planning request.
+## Chunk 2: Rebuild Vue admin map as SVG
 
-- [ ] **Step 3: Add the UI control in `navigation.wxml` and style it**
-
-Fit the new action into the existing action group without disturbing current navigation flows.
-
-- [ ] **Step 4: Manual verification**
-
-Expected:
-- map page opens from navigation
-- returning to navigation keeps the session intact
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add frontend/miniprogram/pages/navigation/navigation.js frontend/miniprogram/pages/navigation/navigation.wxml frontend/miniprogram/pages/navigation/navigation.wxss
-git commit -m "feat: add navigation map entry"
-```
-
-## Chunk 3: Vue admin map preview
-
-### Task 5: Add the admin map preview page and route
+### Task 2: Replace `HospitalMapView.vue` with data-driven SVG rendering
 
 **Files:**
-- Modify: `frontend/vue/src/router/index.ts`
-- Modify: `frontend/vue/src/api/location.ts`
-- Create: `frontend/vue/src/views/location/HospitalMapView.vue`
+- `frontend/vue/src/views/location/HospitalMapView.vue`
+- `frontend/vue/src/constants/maps.ts`
+- `frontend/vue/src/utils/mapProjector.ts`
 
-- [ ] **Step 1: Write the failing manual acceptance checklist**
+- [ ] Keep existing route and sidebar entry intact.
+- [ ] Fetch nodes and edges from existing APIs and build floor scenes locally.
+- [ ] Render floor background, grid, edges, nodes, and labels in SVG.
+- [ ] Keep floor switch, keyword search, node-type filter, edge toggle, and click-to-view detail.
+- [ ] Remove all PNG imports and image-based overlay logic from the admin map page.
 
-Expected behavior:
-- admin route exists
-- page loads floor-plan image and node overlays
-- floor filter, type filter, and search work
-- clicking a marker shows node details
+**Verification**
+- [ ] Run `npm run build` in `frontend/vue`.
 
-- [ ] **Step 2: Extend the location API typing only as needed**
+---
 
-Ensure the existing location API surfaces the fields needed for projection without inventing a second coordinate contract.
+## Chunk 3: Rebuild mini program map as canvas
 
-- [ ] **Step 3: Add the route**
-
-Wire a new route into the existing authenticated `BasicLayout` children.
-
-- [ ] **Step 4: Build `HospitalMapView.vue`**
-
-Implement:
-- floor switcher
-- 3D overview read-only tab
-- node search and type filter
-- projected node overlays
-- selected-node details panel
-
-- [ ] **Step 5: Keep edge-overlay work out of v1**
-
-Do not implement edge overlays in this task. If the page needs to acknowledge the future capability, use static copy such as “边线预览将在后续版本提供”, without adding toggles, dead code, or placeholder API calls.
-
-- [ ] **Step 6: Run a local frontend verification**
-
-Run: `npm run build`
-Workdir: `frontend/vue`
-Expected: PASS.
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add frontend/vue/src/router/index.ts frontend/vue/src/api/location.ts frontend/vue/src/views/location/HospitalMapView.vue
-git commit -m "feat: add admin hospital map preview"
-```
-
-## Chunk 4: Final integration and verification
-
-### Task 6: Verify cross-app consistency and clean handoff
+### Task 3: Replace the map page with a canvas renderer
 
 **Files:**
-- Inspect: `frontend/miniprogram/pages/map/map.js`
-- Inspect: `frontend/miniprogram/utils/map-projector.js`
-- Inspect: `frontend/vue/src/views/location/HospitalMapView.vue`
-- Inspect: `frontend/vue/src/utils/mapProjector.ts`
+- `frontend/miniprogram/services/map-data.js`
+- `frontend/miniprogram/utils/map-projector.js`
+- `frontend/miniprogram/services/navigation-api.js`
+- `frontend/miniprogram/pages/map/map.js`
+- `frontend/miniprogram/pages/map/map.wxml`
+- `frontend/miniprogram/pages/map/map.wxss`
 
-- [ ] **Step 1: Verify projection parity**
+- [ ] Keep the existing bottom tab and navigation-page entry intact.
+- [ ] Fetch nodes and edges from existing APIs and build floor scenes locally.
+- [ ] Draw floor background, grid, edges, nodes, labels, route polyline when present, and `CURRENT / DESTINATION / SEGMENT_END` markers on canvas.
+- [ ] Keep the page usable before scanning any QR code.
+- [ ] Show cross-floor guidance and current summaries from existing navigation session/global state.
+- [ ] Remove PNG image rendering and image-error state from the map page.
 
-Confirm the same sample node lands consistently in both frontends:
-- 1F entrance
-- elevator hall
-- one destination on 2F or 3F
+**Verification**
+- [ ] Run targeted static checks where possible.
+- [ ] Manual verification deferred to user in WeChat DevTools.
 
-- [ ] **Step 2: Verify failure fallbacks**
+---
 
-Check:
-- missing map config shows text fallback
-- image load failure shows text fallback
-- invalid floor avoids precise marker rendering
+## Chunk 4: Integrate and clean up
 
-- [ ] **Step 3: Run mini program manual verification**
+### Task 4: Integrate worker outputs and remove stale PNG assumptions
 
-Expected:
-- scan a QR code on the index page
-- open the map tab
-- current marker appears
-- select a destination
-- destination marker appears
-- open map from navigation page
+**Files:**
+- Any touched files above
 
-- [ ] **Step 4: Run Vue verification**
+- [ ] Reconcile shared naming and floor option consistency between Vue and mini program.
+- [ ] Remove stale references to overview/plotArea/imagePath in runtime code.
+- [ ] Confirm no navigation-page regression for “查看地图”.
+- [ ] Review git diff for leftover dead code or conflicting edits.
 
-Run: `npm run build`
-Workdir: `frontend/vue`
-Expected: PASS.
+**Verification**
+- [ ] Run `npm run build` in `frontend/vue`.
+- [ ] If available, smoke-check mini program JS syntax locally.
 
-- [ ] **Step 5: Keep backend map-config exposure in the backlog**
+---
 
-Do not implement `GET /api/maps` in v1. If later work needs it, create a separate follow-up plan with DTO, controller, and test changes scoped only to backend metadata exposure.
+## Risks
 
-- [ ] **Step 6: Commit**
+- Mini program canvas sizing can drift if device pixel ratio is ignored. The renderer should derive its drawing size from the measured container and current screen ratio.
+- Node labels can overlap in dense areas. v1 accepts limited overlap; priority is structural accuracy.
+- Existing payloads are not perfectly uniform. Scene builders must tolerate `planarX/planarY`, `xCoordinate/yCoordinate`, or nested `coordinates`.
 
-```bash
-git add frontend/miniprogram/app.json frontend/miniprogram/pages/map/map.js frontend/miniprogram/pages/map/map.wxml frontend/miniprogram/pages/map/map.wxss frontend/miniprogram/pages/navigation/navigation.js frontend/miniprogram/pages/navigation/navigation.wxml frontend/miniprogram/pages/navigation/navigation.wxss frontend/miniprogram/services/map-data.js frontend/miniprogram/utils/map-projector.js frontend/vue/src/constants/maps.ts frontend/vue/src/utils/mapProjector.ts frontend/vue/src/views/location/HospitalMapView.vue frontend/vue/src/router/index.ts frontend/vue/src/api/location.ts
-git commit -m "feat: integrate hospital map feature"
-```
+## Definition of Done
 
-Plan complete and saved to `docs/superpowers/plans/2026-03-20-map-feature.md`. Ready to execute.
+- Vue admin map no longer depends on PNG assets at runtime and can inspect nodes and edges by floor.
+- Mini program map no longer depends on PNG assets at runtime and renders a readable floor map from live node/edge data.
+- QR-based current location, destination, and navigation segment end appear on the correct floor scene.
+- Existing navigation entry points and session flow continue to work.
