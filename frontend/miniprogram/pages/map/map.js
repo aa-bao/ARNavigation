@@ -369,7 +369,8 @@ Page({
       ctx.arc(node.renderX, node.renderY, 6.8 * unitScale, 0, Math.PI * 2);
       ctx.stroke();
 
-      ctx.setFillStyle(node.color || '#1d4ed8');
+      // Keep regular nodes neutral so legend colors are reserved for map markers.
+      ctx.setFillStyle('#64748b');
       ctx.beginPath();
       ctx.arc(node.renderX, node.renderY, 3.4 * unitScale, 0, Math.PI * 2);
       ctx.fill();
