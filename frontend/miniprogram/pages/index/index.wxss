@@ -46,6 +46,39 @@
   font-weight: 500;
 }
 
+.nav-progress-section {
+  padding: 0 32rpx 24rpx;
+}
+
+.nav-progress-card {
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 30rpx 28rpx;
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.08);
+}
+
+.nav-progress-title {
+  display: block;
+  font-size: 32rpx;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.nav-progress-desc {
+  display: block;
+  margin-top: 10rpx;
+  color: #64748b;
+  font-size: 25rpx;
+  line-height: 1.6;
+}
+
+.nav-progress-actions {
+  margin-top: 20rpx;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+}
+
 /* 扫码区域 */
 .scan-section {
   padding: 0 32rpx;

@@ -3,6 +3,9 @@
     <text class="eyebrow">{{mapMode === 'navigation' ? '导航地图' : '医院地图'}}</text>
     <text class="title">{{activeTitle}}</text>
     <text class="subtitle">{{guidanceText}}</text>
+    <view class="hero-actions" wx:if="{{mapMode === 'navigation'}}">
+      <button class="hero-action-btn" bindtap="handleBackToNavigation">返回导航</button>
+    </view>
   </view>
 
   <scroll-view class="floor-switcher" scroll-x enable-flex>

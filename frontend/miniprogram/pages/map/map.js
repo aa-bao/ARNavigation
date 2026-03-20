@@ -76,6 +76,7 @@ Page({
     loading: true,
     errorText: '',
     edgeWarningText: '',
+    showNodeNames: true,
     floorNodeCount: 0,
     floorEdgeCount: 0,
     canvasWidth: 320,
@@ -180,6 +181,21 @@ Page({
     this.scheduleRender();
   },
 
+  handleBackToNavigation() {
+    const session = getNavigationSession(app);
+    if (!session?.destination?.nodeId && !session?.destination?.id) {
+      wx.showToast({
+        title: '暂无导航会话',
+        icon: 'none'
+      });
+      return;
+    }
+
+    wx.navigateTo({
+      url: '/pages/navigation/navigation'
+    });
+  },
+
   syncView() {
     const session = getNavigationSession(app);
     const currentNode = session?.currentScannedNode || app.globalData.currentLocation || null;
@@ -281,6 +297,9 @@ Page({
     this.drawEdges(ctx, scene, unitScale);
     this.drawRoute(ctx, scene, unitScale);
     this.drawNodes(ctx, scene, unitScale);
+    if (this.data.showNodeNames) {
+      this.drawNodeLabels(ctx, scene, unitScale);
+    }
     this.drawMarkers(ctx, scene, unitScale);
 
     ctx.restore();
@@ -377,8 +396,53 @@ Page({
     });
   },
 
+  getLabelAnchor(pointX, pointY, scene, unitScale) {
+    const centerX = scene.width / 2;
+    const centerY = scene.height / 2;
+    const horizontal = pointX > centerX ? 'left' : 'right';
+    const vertical = pointY < centerY ? 'down' : 'up';
+    const dx = horizontal === 'right' ? 11 * unitScale : -11 * unitScale;
+    const dy = vertical === 'up' ? -10 * unitScale : 10 * unitScale;
+    return {
+      horizontal,
+      dx,
+      dy
+    };
+  },
+
+  drawNodeLabels(ctx, scene, unitScale) {
+    ctx.setFontSize(10 * unitScale);
+    ctx.setTextBaseline('middle');
+
+    scene.nodes.forEach((node) => {
+      const label = node.label || '';
+      if (!label) {
+        return;
+      }
+
+      const anchor = this.getLabelAnchor(node.renderX, node.renderY, scene, unitScale);
+      const textWidth = Math.min(ctx.measureText(label).width, 76 * unitScale);
+      const boxWidth = textWidth + 10 * unitScale;
+      const boxHeight = 12 * unitScale;
+      const baseX = node.renderX + anchor.dx + (anchor.horizontal === 'right' ? 0 : -boxWidth);
+      const baseY = node.renderY + anchor.dy - boxHeight / 2;
+
+      ctx.setFillStyle('rgba(255,255,255,0.94)');
+      ctx.fillRect(baseX, baseY, boxWidth, boxHeight);
+
+      ctx.setStrokeStyle('rgba(15, 23, 42, 0.12)');
+      ctx.setLineWidth(0.6 * unitScale);
+      ctx.strokeRect(baseX, baseY, boxWidth, boxHeight);
+
+      ctx.setFillStyle('#334155');
+      ctx.setTextAlign('left');
+      ctx.fillText(label, baseX + 5 * unitScale, node.renderY + anchor.dy);
+    });
+  },
+
   drawMarkers(ctx, scene, unitScale) {
-    ctx.setFontSize(13 * unitScale);
+    ctx.setFontSize(11 * unitScale);
+    ctx.setTextBaseline('middle');
     scene.markers.forEach((marker) => {
       ctx.setStrokeStyle(marker.color);
       ctx.setLineWidth(3.2 * unitScale);
@@ -396,9 +460,24 @@ Page({
       ctx.arc(marker.renderX, marker.renderY, 4.6 * unitScale, 0, Math.PI * 2);
       ctx.fill();
 
+      const anchor = this.getLabelAnchor(marker.renderX, marker.renderY, scene, unitScale);
+      const label = marker.nodeName || marker.markerType;
+      const textWidth = Math.min(ctx.measureText(label).width, 112 * unitScale);
+      const boxWidth = textWidth + 12 * unitScale;
+      const boxHeight = 14 * unitScale;
+      const baseX = marker.renderX + anchor.dx + (anchor.horizontal === 'right' ? 0 : -boxWidth);
+      const baseY = marker.renderY + anchor.dy - boxHeight / 2;
+
+      ctx.setFillStyle('rgba(255,255,255,0.97)');
+      ctx.fillRect(baseX, baseY, boxWidth, boxHeight);
+
+      ctx.setStrokeStyle(marker.color);
+      ctx.setLineWidth(0.9 * unitScale);
+      ctx.strokeRect(baseX, baseY, boxWidth, boxHeight);
+
       ctx.setFillStyle(marker.color);
       ctx.setTextAlign('left');
-      ctx.fillText(marker.nodeName, marker.renderX + 22, marker.renderY + 6);
+      ctx.fillText(label, baseX + 6 * unitScale, marker.renderY + anchor.dy);
     });
   }
 });

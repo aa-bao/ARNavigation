@@ -634,6 +634,31 @@ Page({
     });
   },
 
+  continueNavigation() {
+    wx.navigateTo({
+      url: '/pages/navigation/navigation',
+      fail: () => {
+        wx.showToast({
+          title: '无法继续导航',
+          icon: 'none'
+        });
+      }
+    });
+  },
+
+  openMapFromHome() {
+    app.setMapViewContext?.({ mode: 'navigation' });
+    wx.switchTab({
+      url: '/pages/map/map'
+    });
+  },
+
+  stopNavigation() {
+    app.clearNavigationSession?.();
+    app.updateNavState('READY');
+    this.syncGlobalState();
+  },
+
   async clearHistory() {
     const res = await wx.showModal({
       title: '确认',
