@@ -41,6 +41,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Collections;
 
 @Slf4j
 @RestController
@@ -172,33 +173,38 @@ public class NavigationController {
     @GetMapping("/edges")
     @Operation(summary = "查询边列表", description = "返回可用于地图预览的可达边数据，可按楼层筛选")
     public ResponseEntity<Result<List<HospitalEdge>>> getEdges(@RequestParam(required = false) Integer floor) {
-        List<HospitalEdge> edges = hospitalEdgeMapper.selectList(null);
+        try {
+            List<HospitalEdge> edges = hospitalEdgeMapper.selectList(null);
 
-        if (floor == null) {
-            return ResponseEntity.ok(Result.success(edges, "查询成功"));
+            if (floor == null) {
+                return ResponseEntity.ok(Result.success(edges, "查询成功"));
+            }
+
+            Map<Long, HospitalNode> nodeMap = hospitalNodeMapper.selectList(
+                    new LambdaQueryWrapper<HospitalNode>()
+                            .eq(HospitalNode::getIsActive, 1)
+            ).stream().collect(java.util.stream.Collectors.toMap(HospitalNode::getId, node -> node));
+
+            List<HospitalEdge> filteredEdges = edges.stream()
+                    .filter(edge -> {
+                        HospitalNode fromNode = nodeMap.get(edge.getFromNodeId());
+                        HospitalNode toNode = nodeMap.get(edge.getToNodeId());
+                        if (fromNode == null || toNode == null) {
+                            return false;
+                        }
+                        return Integer.valueOf(floor).equals(fromNode.getFloor())
+                                && Integer.valueOf(floor).equals(toNode.getFloor())
+                                && Integer.valueOf(1).equals(fromNode.getIsActive())
+                                && Integer.valueOf(1).equals(toNode.getIsActive())
+                                && (edge.getIsAccessible() == null || Integer.valueOf(1).equals(edge.getIsAccessible()));
+                    })
+                    .toList();
+
+            return ResponseEntity.ok(Result.success(filteredEdges, "查询成功"));
+        } catch (Exception exception) {
+            log.error("查询边数据失败 floor={}", floor, exception);
+            return ResponseEntity.ok(Result.success(Collections.emptyList(), "边线数据暂不可用"));
         }
-
-        Map<Long, HospitalNode> nodeMap = hospitalNodeMapper.selectList(
-                new LambdaQueryWrapper<HospitalNode>()
-                        .eq(HospitalNode::getIsActive, 1)
-        ).stream().collect(java.util.stream.Collectors.toMap(HospitalNode::getId, node -> node));
-
-        List<HospitalEdge> filteredEdges = edges.stream()
-                .filter(edge -> {
-                    HospitalNode fromNode = nodeMap.get(edge.getFromNodeId());
-                    HospitalNode toNode = nodeMap.get(edge.getToNodeId());
-                    if (fromNode == null || toNode == null) {
-                        return false;
-                    }
-                    return Integer.valueOf(floor).equals(fromNode.getFloor())
-                            && Integer.valueOf(floor).equals(toNode.getFloor())
-                            && Integer.valueOf(1).equals(fromNode.getIsActive())
-                            && Integer.valueOf(1).equals(toNode.getIsActive())
-                            && (edge.getIsAccessible() == null || Integer.valueOf(1).equals(edge.getIsAccessible()));
-                })
-                .toList();
-
-        return ResponseEntity.ok(Result.success(filteredEdges, "查询成功"));
     }
 
     @GetMapping("/destinations")

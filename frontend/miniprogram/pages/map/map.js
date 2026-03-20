@@ -75,6 +75,7 @@ Page({
     guidanceText: '地图仅供参考，位置以二维码扫描为准。',
     loading: true,
     errorText: '',
+    edgeWarningText: '',
     canvasWidth: 320,
     canvasHeight: getCanvasHeight(320),
     legendItems: [
@@ -123,14 +124,28 @@ Page({
   },
 
   async ensureMapData() {
-    if (this.mapNodes.length && this.mapEdges.length) {
+    if (this.mapNodes.length) {
       return;
     }
 
-    this.setData({ loading: true, errorText: '' });
-    const [nodes, edges] = await Promise.all([fetchMapNodes(), fetchMapEdges()]);
+    this.setData({ loading: true, errorText: '', edgeWarningText: '' });
+
+    const nodes = await fetchMapNodes();
     this.mapNodes = Array.isArray(nodes) ? nodes : [];
-    this.mapEdges = Array.isArray(edges) ? edges : [];
+    if (!this.mapNodes.length) {
+      throw new Error('地图节点数据为空');
+    }
+
+    try {
+      const edges = await fetchMapEdges();
+      this.mapEdges = Array.isArray(edges) ? edges : [];
+    } catch (error) {
+      this.mapEdges = [];
+      this.setData({
+        edgeWarningText: '边线数据加载失败，已切换为纯节点地图。'
+      });
+    }
+
     this.setData({ loading: false });
   },
 

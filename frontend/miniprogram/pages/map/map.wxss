@@ -103,6 +103,10 @@
   line-height: 1.7;
 }
 
+.state-card.warning {
+  color: #b45309;
+}
+
 .summary-row {
   display: flex;
   justify-content: space-between;

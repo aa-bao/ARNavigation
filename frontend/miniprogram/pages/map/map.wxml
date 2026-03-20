@@ -38,6 +38,9 @@
     <view class="state-card" wx:if="{{loading || errorText}}">
       <text>{{loading ? '地图数据加载中...' : errorText}}</text>
     </view>
+    <view class="state-card warning" wx:if="{{!loading && !errorText && edgeWarningText}}">
+      <text>{{edgeWarningText}}</text>
+    </view>
   </view>
 
   <view class="summary-card">
