@@ -49,6 +49,10 @@ export const resolveNodeCoordinates = (node = {}) => ({
 });
 
 export const projectPlanarPoint = (x, y) => {
+  return projectPlanarPointWithBounds(x, y, MAP_COORDINATE_RANGE);
+};
+
+export const projectPlanarPointWithBounds = (x, y, bounds = MAP_COORDINATE_RANGE) => {
   const pointX = toNumber(x);
   const pointY = toNumber(y);
   if (pointX === null || pointY === null) {
@@ -56,8 +60,10 @@ export const projectPlanarPoint = (x, y) => {
   }
 
   const { width, height, padding } = MAP_VIEWPORT;
-  const normalizedX = clamp((pointX - MAP_COORDINATE_RANGE.minX) / (MAP_COORDINATE_RANGE.maxX - MAP_COORDINATE_RANGE.minX));
-  const normalizedY = clamp((pointY - MAP_COORDINATE_RANGE.minY) / (MAP_COORDINATE_RANGE.maxY - MAP_COORDINATE_RANGE.minY));
+  const spanX = Math.max((bounds.maxX - bounds.minX), 1);
+  const spanY = Math.max((bounds.maxY - bounds.minY), 1);
+  const normalizedX = clamp((pointX - bounds.minX) / spanX);
+  const normalizedY = clamp((pointY - bounds.minY) / spanY);
   const drawableWidth = width - padding.left - padding.right;
   const drawableHeight = height - padding.top - padding.bottom;
 
@@ -95,6 +101,30 @@ export const buildMapMarker = (node, markerType) => {
   };
 };
 
+const deriveFloorBounds = (points = []) => {
+  const valid = points.filter((point) => Number.isFinite(point?.x) && Number.isFinite(point?.y));
+  if (!valid.length) {
+    return MAP_COORDINATE_RANGE;
+  }
+
+  const minX = Math.min(...valid.map((point) => point.x));
+  const maxX = Math.max(...valid.map((point) => point.x));
+  const minY = Math.min(...valid.map((point) => point.y));
+  const maxY = Math.max(...valid.map((point) => point.y));
+
+  const spanX = Math.max(maxX - minX, 18);
+  const spanY = Math.max(maxY - minY, 18);
+  const paddingX = Math.max(spanX * 0.22, 3.5);
+  const paddingY = Math.max(spanY * 0.24, 3.5);
+
+  return {
+    minX: minX - paddingX,
+    maxX: maxX + paddingX,
+    minY: minY - paddingY,
+    maxY: maxY + paddingY
+  };
+};
+
 const buildGrid = (count, start, size) =>
   Array.from({ length: count + 1 }, (_, index) => start + (size / count) * index);
 
@@ -106,11 +136,23 @@ export const buildMapScene = ({
   markerNodes = {}
 } = {}) => {
   const floorNodes = nodes.filter((node) => resolveNodeFloor(node) === Number(floor));
+  const floorRoutePoints = routePoints.filter((point) => resolveNodeFloor(point) === Number(floor));
+  const floorMarkerNodes = Object.values(markerNodes || {}).filter(
+    (node) => node && resolveNodeFloor(node) === Number(floor)
+  );
+
+  const floorBounds = deriveFloorBounds(
+    floorNodes
+      .concat(floorRoutePoints)
+      .concat(floorMarkerNodes)
+      .map((node) => resolveNodeCoordinates(node))
+      .filter((point) => point.x !== null && point.y !== null)
+  );
 
   const nodeViews = floorNodes
     .map((node) => {
       const coordinates = resolveNodeCoordinates(node);
-      const projection = projectPlanarPoint(coordinates.x, coordinates.y);
+      const projection = projectPlanarPointWithBounds(coordinates.x, coordinates.y, floorBounds);
       if (!projection) {
         return null;
       }
@@ -155,15 +197,30 @@ export const buildMapScene = ({
       if (!node || resolveNodeFloor(node) !== Number(floor)) {
         return null;
       }
-      return buildMapMarker(node, markerType);
+      const coordinates = resolveNodeCoordinates(node);
+      const projection = projectPlanarPointWithBounds(coordinates.x, coordinates.y, floorBounds);
+      if (!projection) {
+        return null;
+      }
+      return {
+        id: `${markerType}-${node.nodeCode || node.nodeId || node.id || node.nodeName || 'unknown'}`,
+        markerType,
+        floor: Number(floor),
+        nodeName: node.nodeName || node.name || '未命名点位',
+        nodeCode: node.nodeCode || '',
+        description: node.description || '',
+        color: getMarkerStyle(markerType).color,
+        renderX: projection.renderX,
+        renderY: projection.renderY,
+        raw: node
+      };
     })
     .filter(Boolean);
 
-  const route = routePoints
-    .filter((point) => resolveNodeFloor(point) === Number(floor))
+  const route = floorRoutePoints
     .map((point) => {
       const coordinates = resolveNodeCoordinates(point);
-      return projectPlanarPoint(coordinates.x, coordinates.y);
+      return projectPlanarPointWithBounds(coordinates.x, coordinates.y, floorBounds);
     })
     .filter(Boolean);
 

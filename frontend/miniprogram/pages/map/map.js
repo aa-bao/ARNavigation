@@ -413,6 +413,7 @@ Page({
   drawNodeLabels(ctx, scene, unitScale) {
     ctx.setFontSize(10 * unitScale);
     ctx.setTextBaseline('middle');
+    const placedBoxes = [];
 
     scene.nodes.forEach((node) => {
       const label = node.label || '';
@@ -426,6 +427,20 @@ Page({
       const boxHeight = 12 * unitScale;
       const baseX = node.renderX + anchor.dx + (anchor.horizontal === 'right' ? 0 : -boxWidth);
       const baseY = node.renderY + anchor.dy - boxHeight / 2;
+      const box = {
+        left: baseX,
+        right: baseX + boxWidth,
+        top: baseY,
+        bottom: baseY + boxHeight
+      };
+
+      const overlaps = placedBoxes.some((existing) =>
+        !(box.right < existing.left || box.left > existing.right || box.bottom < existing.top || box.top > existing.bottom)
+      );
+
+      if (overlaps) {
+        return;
+      }
 
       ctx.setFillStyle('rgba(255,255,255,0.94)');
       ctx.fillRect(baseX, baseY, boxWidth, boxHeight);
@@ -437,6 +452,7 @@ Page({
       ctx.setFillStyle('#334155');
       ctx.setTextAlign('left');
       ctx.fillText(label, baseX + 5 * unitScale, node.renderY + anchor.dy);
+      placedBoxes.push(box);
     });
   },
 
