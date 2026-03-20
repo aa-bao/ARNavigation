@@ -76,6 +76,8 @@ Page({
     loading: true,
     errorText: '',
     edgeWarningText: '',
+    floorNodeCount: 0,
+    floorEdgeCount: 0,
     canvasWidth: 320,
     canvasHeight: getCanvasHeight(320),
     legendItems: [
@@ -272,29 +274,38 @@ Page({
     ctx.save();
     ctx.scale(scaleX, scaleY);
 
-    this.drawBoard(ctx, scene);
-    this.drawGrid(ctx, scene);
-    this.drawEdges(ctx, scene);
-    this.drawRoute(ctx, scene);
-    this.drawNodes(ctx, scene);
-    this.drawMarkers(ctx, scene);
+    const unitScale = 1 / Math.min(scaleX, scaleY);
+
+    this.drawBoard(ctx, scene, unitScale);
+    this.drawGrid(ctx, scene, unitScale);
+    this.drawEdges(ctx, scene, unitScale);
+    this.drawRoute(ctx, scene, unitScale);
+    this.drawNodes(ctx, scene, unitScale);
+    this.drawMarkers(ctx, scene, unitScale);
 
     ctx.restore();
     ctx.draw();
+
+    if (scene.nodes.length !== this.data.floorNodeCount || scene.edges.length !== this.data.floorEdgeCount) {
+      this.setData({
+        floorNodeCount: scene.nodes.length,
+        floorEdgeCount: scene.edges.length
+      });
+    }
   },
 
-  drawBoard(ctx, scene) {
+  drawBoard(ctx, scene, unitScale) {
     ctx.setFillStyle('#f7fbff');
     ctx.fillRect(0, 0, scene.width, scene.height);
 
     ctx.setStrokeStyle('rgba(47, 111, 159, 0.18)');
-    ctx.setLineWidth(2);
+    ctx.setLineWidth(1.2 * unitScale);
     ctx.strokeRect(1, 1, scene.width - 2, scene.height - 2);
   },
 
-  drawGrid(ctx, scene) {
+  drawGrid(ctx, scene, unitScale) {
     ctx.setStrokeStyle('rgba(148, 163, 184, 0.18)');
-    ctx.setLineWidth(1);
+    ctx.setLineWidth(0.8 * unitScale);
 
     scene.gridX.forEach((x) => {
       ctx.beginPath();
@@ -311,9 +322,9 @@ Page({
     });
   },
 
-  drawEdges(ctx, scene) {
+  drawEdges(ctx, scene, unitScale) {
     ctx.setStrokeStyle('rgba(36, 67, 94, 0.44)');
-    ctx.setLineWidth(6);
+    ctx.setLineWidth(2.8 * unitScale);
     ctx.setLineCap('round');
 
     scene.edges.forEach((edge) => {
@@ -324,13 +335,13 @@ Page({
     });
   },
 
-  drawRoute(ctx, scene) {
+  drawRoute(ctx, scene, unitScale) {
     if (!scene.route.length) {
       return;
     }
 
     ctx.setStrokeStyle('#16a34a');
-    ctx.setLineWidth(8);
+    ctx.setLineWidth(3.6 * unitScale);
     ctx.setLineCap('round');
     ctx.setLineJoin('round');
 
@@ -345,43 +356,38 @@ Page({
     ctx.stroke();
   },
 
-  drawNodes(ctx, scene) {
-    ctx.setFontSize(18);
+  drawNodes(ctx, scene, unitScale) {
     scene.nodes.forEach((node) => {
       ctx.setFillStyle(node.color);
       ctx.beginPath();
-      ctx.arc(node.renderX, node.renderY, 8, 0, Math.PI * 2);
+      ctx.arc(node.renderX, node.renderY, 5.2 * unitScale, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.setStrokeStyle('rgba(15, 23, 42, 0.08)');
-      ctx.setLineWidth(1);
+      ctx.setLineWidth(0.9 * unitScale);
       ctx.beginPath();
-      ctx.arc(node.renderX, node.renderY, 14, 0, Math.PI * 2);
+      ctx.arc(node.renderX, node.renderY, 7.8 * unitScale, 0, Math.PI * 2);
       ctx.stroke();
-
-      ctx.setFillStyle('#334155');
-      ctx.setTextAlign('center');
-      ctx.fillText(node.label, node.renderX, node.renderY - 18);
     });
   },
 
-  drawMarkers(ctx, scene) {
-    ctx.setFontSize(18);
+  drawMarkers(ctx, scene, unitScale) {
+    ctx.setFontSize(13 * unitScale);
     scene.markers.forEach((marker) => {
       ctx.setStrokeStyle(marker.color);
-      ctx.setLineWidth(6);
+      ctx.setLineWidth(3.2 * unitScale);
       ctx.beginPath();
-      ctx.arc(marker.renderX, marker.renderY, 18, 0, Math.PI * 2);
+      ctx.arc(marker.renderX, marker.renderY, 11.5 * unitScale, 0, Math.PI * 2);
       ctx.stroke();
 
       ctx.setFillStyle('#ffffff');
       ctx.beginPath();
-      ctx.arc(marker.renderX, marker.renderY, 11, 0, Math.PI * 2);
+      ctx.arc(marker.renderX, marker.renderY, 6.8 * unitScale, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.setFillStyle(marker.color);
       ctx.beginPath();
-      ctx.arc(marker.renderX, marker.renderY, 7, 0, Math.PI * 2);
+      ctx.arc(marker.renderX, marker.renderY, 4.6 * unitScale, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.setFillStyle(marker.color);

@@ -56,5 +56,9 @@
       <text class="summary-label">下一校准点</text>
       <text class="summary-value">{{segmentEndSummary}}</text>
     </view>
+    <view class="summary-row">
+      <text class="summary-label">本层点/边</text>
+      <text class="summary-value">{{floorNodeCount}} / {{floorEdgeCount}}</text>
+    </view>
   </view>
 </view>
