@@ -323,8 +323,8 @@ Page({
   },
 
   drawEdges(ctx, scene, unitScale) {
-    ctx.setStrokeStyle('rgba(36, 67, 94, 0.44)');
-    ctx.setLineWidth(2.8 * unitScale);
+    ctx.setStrokeStyle('rgba(37, 99, 235, 0.82)');
+    ctx.setLineWidth(3.8 * unitScale);
     ctx.setLineCap('round');
 
     scene.edges.forEach((edge) => {
@@ -358,16 +358,21 @@ Page({
 
   drawNodes(ctx, scene, unitScale) {
     scene.nodes.forEach((node) => {
-      ctx.setFillStyle(node.color);
+      ctx.setFillStyle('#ffffff');
       ctx.beginPath();
-      ctx.arc(node.renderX, node.renderY, 5.2 * unitScale, 0, Math.PI * 2);
+      ctx.arc(node.renderX, node.renderY, 6.8 * unitScale, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.setStrokeStyle('rgba(15, 23, 42, 0.08)');
-      ctx.setLineWidth(0.9 * unitScale);
+      ctx.setStrokeStyle('rgba(15, 23, 42, 0.35)');
+      ctx.setLineWidth(1.5 * unitScale);
       ctx.beginPath();
-      ctx.arc(node.renderX, node.renderY, 7.8 * unitScale, 0, Math.PI * 2);
+      ctx.arc(node.renderX, node.renderY, 6.8 * unitScale, 0, Math.PI * 2);
       ctx.stroke();
+
+      ctx.setFillStyle(node.color || '#1d4ed8');
+      ctx.beginPath();
+      ctx.arc(node.renderX, node.renderY, 3.4 * unitScale, 0, Math.PI * 2);
+      ctx.fill();
     });
   },
 

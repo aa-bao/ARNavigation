@@ -30,8 +30,22 @@ export const resolveNodeFloor = (node = {}) => {
 };
 
 export const resolveNodeCoordinates = (node = {}) => ({
-  x: toNumber(node.planarX ?? node.xCoordinate ?? node.coordinates?.x ?? node.x),
-  y: toNumber(node.planarY ?? node.yCoordinate ?? node.coordinates?.y ?? node.y)
+  x: toNumber(
+    node.planarX
+    ?? node.xCoordinate
+    ?? node.xcoordinate
+    ?? node.x_coordinate
+    ?? node.coordinates?.x
+    ?? node.x
+  ),
+  y: toNumber(
+    node.planarY
+    ?? node.yCoordinate
+    ?? node.ycoordinate
+    ?? node.y_coordinate
+    ?? node.coordinates?.y
+    ?? node.y
+  )
 });
 
 export const projectPlanarPoint = (x, y) => {
