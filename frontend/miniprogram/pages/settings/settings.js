@@ -1,5 +1,6 @@
 // pages/settings/settings.js
 import { put, resolveAssetUrl, uploadFile } from '../../utils/request.js';
+import { DEFAULT_USER_SETTINGS, loadUserSettingsSync, saveUserSettingsSync } from '../../utils/user-settings.js';
 
 const app = getApp();
 
@@ -18,12 +19,7 @@ Page({
   data: {
     isLoggedIn: false,
     settings: {
-      voiceEnabled: true,
-      vibrationEnabled: true,
-      highAccuracyLocation: true,
-      autoStartAR: false,
-      darkMode: false,
-      fontSize: 'normal'
+      ...DEFAULT_USER_SETTINGS
     },
     appInfo: {
       version: '1.0.0',
@@ -75,12 +71,11 @@ Page({
 
   loadSettings() {
     try {
-      const savedSettings = wx.getStorageSync('userSettings');
-      if (savedSettings) {
-        this.setData({
-          settings: { ...this.data.settings, ...savedSettings }
-        });
-      }
+      const savedSettings = loadUserSettingsSync();
+      this.setData({
+        settings: { ...this.data.settings, ...savedSettings }
+      });
+      app.updateUserSettings?.(savedSettings);
     } catch (error) {
       console.error('Load settings failed:', error);
     }
@@ -88,7 +83,8 @@ Page({
 
   saveSettings() {
     try {
-      wx.setStorageSync('userSettings', this.data.settings);
+      const next = saveUserSettingsSync(this.data.settings);
+      app.updateUserSettings?.(next);
     } catch (error) {
       console.error('Save settings failed:', error);
     }
@@ -172,6 +168,24 @@ Page({
       case 'voiceEnabled':
         wx.showToast({
           title: value ? '语音播报已开启' : '语音播报已关闭',
+          icon: 'none'
+        });
+        break;
+      case 'vibrationEnabled':
+        wx.showToast({
+          title: value ? '震动反馈已开启' : '震动反馈已关闭',
+          icon: 'none'
+        });
+        break;
+      case 'highAccuracyLocation':
+        wx.showToast({
+          title: value ? '扫码校准优先已开启' : '扫码校准优先已关闭',
+          icon: 'none'
+        });
+        break;
+      case 'autoStartAR':
+        wx.showToast({
+          title: value ? '自动启动AR已开启' : '自动启动AR已关闭',
           icon: 'none'
         });
         break;

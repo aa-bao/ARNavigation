@@ -9,8 +9,12 @@ import { getStorage, setStorage } from '../../utils/storage.js';
 import { calculatePlanarDistance } from '../../utils/location.js';
 import { normalizeNode } from '../../utils/navigation-transform.js';
 import { parseNavigationScanResult, scanNavigationTarget } from '../../services/navigation-session.js';
+import { emitVibrationFeedback, emitVoiceBroadcast } from '../../utils/navigation-feedback.js';
+import { loadUserSettingsSync } from '../../utils/user-settings.js';
 
 const app = getApp();
+
+const getUserSettings = () => app.getUserSettings?.() || loadUserSettingsSync();
 
 const NAV_STATE_TEXT = {
   UNLOCATED: '未定位',
@@ -312,6 +316,9 @@ Page({
       };
 
       app.setCurrentLocation(currentLocation);
+      const settings = getUserSettings();
+      emitVibrationFeedback(settings, 'short');
+      emitVoiceBroadcast(settings, `已定位 ${currentLocation.name}`);
 
       this.setData({
         currentLocation,
@@ -632,6 +639,31 @@ Page({
         });
       }
     });
+  },
+
+  continueNavigation() {
+    wx.navigateTo({
+      url: '/pages/navigation/navigation',
+      fail: () => {
+        wx.showToast({
+          title: '无法继续导航',
+          icon: 'none'
+        });
+      }
+    });
+  },
+
+  openMapFromHome() {
+    app.setMapViewContext?.({ mode: 'navigation' });
+    wx.switchTab({
+      url: '/pages/map/map'
+    });
+  },
+
+  stopNavigation() {
+    app.clearNavigationSession?.();
+    app.updateNavState('READY');
+    this.syncGlobalState();
   },
 
   async clearHistory() {
