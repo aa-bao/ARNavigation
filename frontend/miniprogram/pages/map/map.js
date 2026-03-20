@@ -414,6 +414,26 @@ Page({
     ctx.setFontSize(10 * unitScale);
     ctx.setTextBaseline('middle');
     const placedBoxes = [];
+    const createCandidates = (node, boxWidth, boxHeight) => {
+      const offsets = [
+        { dx: 11 * unitScale, dy: -10 * unitScale, align: 'right' },
+        { dx: 11 * unitScale, dy: 10 * unitScale, align: 'right' },
+        { dx: -(11 * unitScale + boxWidth), dy: -10 * unitScale, align: 'left' },
+        { dx: -(11 * unitScale + boxWidth), dy: 10 * unitScale, align: 'left' },
+        { dx: -(boxWidth / 2), dy: -(16 * unitScale), align: 'center' },
+        { dx: -(boxWidth / 2), dy: 16 * unitScale, align: 'center' }
+      ];
+      return offsets.map((offset) => ({
+        left: node.renderX + offset.dx,
+        top: node.renderY + offset.dy - boxHeight / 2,
+        align: offset.align
+      }));
+    };
+    const overlapArea = (a, b) => {
+      const width = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+      const height = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+      return width * height;
+    };
 
     scene.nodes.forEach((node) => {
       const label = node.label || '';
@@ -421,25 +441,34 @@ Page({
         return;
       }
 
-      const anchor = this.getLabelAnchor(node.renderX, node.renderY, scene, unitScale);
       const textWidth = Math.min(ctx.measureText(label).width, 76 * unitScale);
       const boxWidth = textWidth + 10 * unitScale;
       const boxHeight = 12 * unitScale;
-      const baseX = node.renderX + anchor.dx + (anchor.horizontal === 'right' ? 0 : -boxWidth);
-      const baseY = node.renderY + anchor.dy - boxHeight / 2;
-      const box = {
-        left: baseX,
-        right: baseX + boxWidth,
-        top: baseY,
-        bottom: baseY + boxHeight
-      };
+      const candidates = createCandidates(node, boxWidth, boxHeight);
+      let best = null;
+      let bestPenalty = Number.POSITIVE_INFINITY;
 
-      const overlaps = placedBoxes.some((existing) =>
-        !(box.right < existing.left || box.left > existing.right || box.bottom < existing.top || box.top > existing.bottom)
-      );
+      candidates.forEach((candidate) => {
+        const box = {
+          left: candidate.left,
+          right: candidate.left + boxWidth,
+          top: candidate.top,
+          bottom: candidate.top + boxHeight
+        };
+        const penalty = placedBoxes.reduce((sum, existing) => sum + overlapArea(box, existing), 0);
+        if (penalty < bestPenalty) {
+          bestPenalty = penalty;
+          best = { box, candidate };
+        }
+      });
 
-      if (overlaps) {
-        return;
+      let baseX = best.box.left;
+      let baseY = best.box.top;
+
+      // Final fallback: force a shifted row so every node keeps a label.
+      if (!Number.isFinite(bestPenalty)) {
+        baseX = node.renderX + 12 * unitScale;
+        baseY = node.renderY + ((placedBoxes.length % 4) - 1.5) * 13 * unitScale;
       }
 
       ctx.setFillStyle('rgba(255,255,255,0.94)');
@@ -451,8 +480,13 @@ Page({
 
       ctx.setFillStyle('#334155');
       ctx.setTextAlign('left');
-      ctx.fillText(label, baseX + 5 * unitScale, node.renderY + anchor.dy);
-      placedBoxes.push(box);
+      ctx.fillText(label, baseX + 5 * unitScale, baseY + boxHeight / 2);
+      placedBoxes.push({
+        left: baseX,
+        right: baseX + boxWidth,
+        top: baseY,
+        bottom: baseY + boxHeight
+      });
     });
   },
 
