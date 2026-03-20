@@ -137,9 +137,14 @@ export const buildMapScene = ({
 } = {}) => {
   const floorNodes = nodes.filter((node) => resolveNodeFloor(node) === Number(floor));
   const floorRoutePoints = routePoints.filter((point) => resolveNodeFloor(point) === Number(floor));
-  const floorMarkerNodes = Object.values(markerNodes || {}).filter(
-    (node) => node && resolveNodeFloor(node) === Number(floor)
-  );
+  const floorMarkerNodes = [];
+  const markerKeys = markerNodes ? Object.keys(markerNodes) : [];
+  markerKeys.forEach((key) => {
+    const node = markerNodes[key];
+    if (node && resolveNodeFloor(node) === Number(floor)) {
+      floorMarkerNodes.push(node);
+    }
+  });
 
   const floorBounds = deriveFloorBounds(
     floorNodes
