@@ -165,12 +165,6 @@ Page({
 
   applySetting(field, value) {
     switch (field) {
-      case 'voiceEnabled':
-        wx.showToast({
-          title: value ? '语音播报已开启' : '语音播报已关闭',
-          icon: 'none'
-        });
-        break;
       case 'vibrationEnabled':
         wx.showToast({
           title: value ? '震动反馈已开启' : '震动反馈已关闭',

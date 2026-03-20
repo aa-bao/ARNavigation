@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/map/map",
     "pages/navigation/navigation",
     "pages/ar/ar",
     "pages/settings/settings",
@@ -23,6 +24,12 @@
         "text": "首页",
         "iconPath": "images/home.png",
         "selectedIconPath": "images/home-active.png"
+      },
+      {
+        "pagePath": "pages/map/map",
+        "text": "地图",
+        "iconPath": "images/mapTab.png",
+        "selectedIconPath": "images/mapTab-active.png"
       },
       {
         "pagePath": "pages/settings/settings",

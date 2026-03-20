@@ -1,0 +1,67 @@
+<view class="map-page">
+  <view class="hero-card">
+    <text class="eyebrow">{{mapMode === 'navigation' ? '导航地图' : '医院地图'}}</text>
+    <text class="title">{{activeTitle}}</text>
+    <text class="subtitle">{{guidanceText}}</text>
+    <view class="hero-actions" wx:if="{{mapMode === 'navigation'}}">
+      <button class="hero-action-btn" bindtap="handleBackToNavigation">返回导航</button>
+    </view>
+  </view>
+
+  <scroll-view class="floor-switcher" scroll-x enable-flex>
+    <view
+      wx:for="{{floorOptions}}"
+      wx:key="key"
+      class="floor-chip {{activeKey === item.key ? 'active' : ''}}"
+      data-key="{{item.key}}"
+      bindtap="handleFloorSwitch"
+    >
+      {{item.key}}
+    </view>
+  </scroll-view>
+
+  <view class="map-card">
+    <view class="map-stage">
+      <canvas
+        canvas-id="floorCanvas"
+        class="map-canvas"
+        width="{{canvasWidth}}"
+        height="{{canvasHeight}}"
+        style="width: {{canvasWidth}}px; height: {{canvasHeight}}px;"
+      ></canvas>
+    </view>
+
+    <view class="legend-row">
+      <view wx:for="{{legendItems}}" wx:key="key" class="legend-item">
+        <view class="legend-dot" style="background: {{item.color}};"></view>
+        <text>{{item.label}}</text>
+      </view>
+    </view>
+
+    <view class="state-card" wx:if="{{loading || errorText}}">
+      <text>{{loading ? '地图数据加载中...' : errorText}}</text>
+    </view>
+    <view class="state-card warning" wx:if="{{!loading && !errorText && edgeWarningText}}">
+      <text>{{edgeWarningText}}</text>
+    </view>
+  </view>
+
+  <view class="summary-card">
+    <view class="summary-row">
+      <text class="summary-label">当前位置</text>
+      <text class="summary-value">{{currentSummary}}</text>
+    </view>
+    <view class="summary-row">
+      <text class="summary-label">目的地</text>
+      <text class="summary-value">{{destinationSummary}}</text>
+    </view>
+    <view class="summary-row" wx:if="{{mapMode === 'navigation'}}">
+      <text class="summary-label">下一校准点</text>
+      <text class="summary-value">{{segmentEndSummary}}</text>
+    </view>
+    <view class="summary-row">
+      <text class="summary-label">本层点/边</text>
+      <text class="summary-value">{{floorNodeCount}} / {{floorEdgeCount}}</text>
+    </view>
+  </view>
+</view>

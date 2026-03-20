@@ -19,17 +19,6 @@
     <view class="settings-list">
       <view class="setting-item">
         <view class="item-left">
-          <image class="item-icon" src="/images/voice.png" mode="aspectFit"></image>
-          <view class="item-content">
-            <text class="item-title">语音播报</text>
-            <text class="item-desc">导航时播报语音指令</text>
-          </view>
-        </view>
-        <switch class="item-switch" checked="{{settings.voiceEnabled}}" data-field="voiceEnabled" bindchange="onSettingChange" />
-      </view>
-
-      <view class="setting-item">
-        <view class="item-left">
           <image class="item-icon" src="/images/vibration.png" mode="aspectFit"></image>
           <view class="item-content">
             <text class="item-title">震动反馈</text>

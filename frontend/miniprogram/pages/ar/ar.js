@@ -132,18 +132,29 @@ Page({
     const stopCompass = startCompass((payload) => {
       const session = getNavigationSession(app) || this.session;
       const heading = session?.segmentHeading ?? getSegmentHeading(session);
-      if (heading === null) {
+      const deviceDirection = Math.round(payload.direction);
+      const hasHeading = !(heading === null || heading === undefined || Number.isNaN(Number(heading)));
+
+      if (!hasHeading) {
+        this.setData({
+          deviceDirection,
+          targetDirection: 0,
+          relativeAngle: 0,
+          arrowRotation: 0,
+          directionText: '当前为跨楼层段，请前往下一二维码点',
+          motionText: `设备朝向 ${deviceDirection}°`
+        });
         return;
       }
 
       const relative = calculateRelativeDirection(payload.direction, heading);
       this.setData({
-        deviceDirection: Math.round(payload.direction),
+        deviceDirection,
         targetDirection: Math.round(heading),
         relativeAngle: Math.round(relative.relativeAngle),
         arrowRotation: relative.arrowRotation,
         directionText: relative.direction || '请沿箭头方向前进',
-        motionText: `设备航向 ${Math.round(payload.direction)}°`
+        motionText: `设备朝向 ${Math.round(payload.direction)}°`
       });
     });
 
@@ -161,7 +172,7 @@ Page({
     const currentSession = getNavigationSession(app);
     const destination = currentSession?.destination || app.globalData.destination;
     if (!destination?.id) {
-      this.setData({ errorText: '缺少目的地信息，请返回重新选择。' });
+      this.setData({ errorText: '缺少目的地信息，请返回重选。' });
       return;
     }
 
@@ -173,7 +184,10 @@ Page({
       const nodeCode = scanTarget?.nodeCode || scanTarget?.nodeId;
       const currentNode = nodeCode ? await getNodeByCode(nodeCode).catch(() => null) : null;
       const resolvedNode = buildCurrentNodeFromScan(scanTarget, currentNode);
-      const segmentResponse = await getNavigationSegment(resolvedNode.nodeCode || resolvedNode.nodeId || nodeCode, destination.id);
+      const segmentResponse = await getNavigationSegment(
+        resolvedNode.nodeCode || resolvedNode.nodeId || nodeCode,
+        destination.id
+      );
       const session = createNavigationSession({
         destination,
         currentNode: resolvedNode,

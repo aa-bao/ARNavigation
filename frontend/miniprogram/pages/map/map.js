@@ -1,0 +1,633 @@
+import {
+  fetchMapEdges,
+  fetchMapNodes,
+  fetchNavigationPath,
+  getMapOptionByKey,
+  MAP_FLOOR_OPTIONS,
+  MAP_VIEWPORT
+} from '../../services/map-data.js';
+import { getNavigationSession } from '../../services/navigation-session.js';
+import { buildMapScene, resolveNodeCoordinates } from '../../utils/map-projector.js';
+
+const app = getApp();
+
+const getRecommendedFloor = ({ currentNode, destination, segmentEndNode, mode }) => {
+  const currentFloor = Number(currentNode?.floor ?? currentNode?.floorNumber);
+  const destinationFloor = Number(destination?.floor);
+  const nextFloor = Number(segmentEndNode?.floor);
+
+  if (mode === 'navigation' && Number.isFinite(currentFloor)) {
+    return currentFloor;
+  }
+
+  if (Number.isFinite(nextFloor)) {
+    return nextFloor;
+  }
+
+  if (Number.isFinite(currentFloor)) {
+    return currentFloor;
+  }
+
+  if (Number.isFinite(destinationFloor)) {
+    return destinationFloor;
+  }
+
+  return 1;
+};
+
+const resolveNodeName = (node, fallback) => node?.nodeName || node?.name || fallback;
+
+const getGuidanceText = ({ floor, mode, currentNode, destination, segmentEndNode }) => {
+  const currentFloor = Number(currentNode?.floor ?? currentNode?.floorNumber);
+  const destinationFloor = Number(destination?.floor);
+  const segmentFloor = Number(segmentEndNode?.floor);
+
+  if (mode === 'navigation' && Number.isFinite(segmentFloor) && segmentFloor !== floor) {
+    return `当前导航段终点位于 ${segmentFloor}F，切换楼层后可查看下一校准点。`;
+  }
+
+  if (Number.isFinite(currentFloor) && Number.isFinite(destinationFloor) && currentFloor !== destinationFloor) {
+    return `您当前位于 ${currentFloor}F，目标位于 ${destinationFloor}F，请优先前往电梯或楼梯换层。`;
+  }
+
+  if (mode === 'navigation') {
+    return '导航中，地图会同步显示当前位置、下一校准点和目标点。';
+  }
+
+  return '地图仅供参考，位置以二维码扫描为准。';
+};
+
+const getCanvasHeight = (width) => Math.round((width * MAP_VIEWPORT.height) / MAP_VIEWPORT.width);
+const hasValidCoordinates = (node) => {
+  if (!node) {
+    return false;
+  }
+  const coordinates = resolveNodeCoordinates(node);
+  return Number.isFinite(coordinates.x) && Number.isFinite(coordinates.y);
+};
+
+Page({
+  data: {
+    mapMode: 'browse',
+    hasCustomSelection: false,
+    activeKey: '1F',
+    activeTitle: '1F 平面图',
+    activeFloor: 1,
+    floorOptions: MAP_FLOOR_OPTIONS,
+    currentNode: null,
+    segmentEndNode: null,
+    destination: null,
+    currentSummary: '尚未定位',
+    segmentEndSummary: '暂无下一校准点',
+    destinationSummary: '尚未选择',
+    guidanceText: '地图仅供参考，位置以二维码扫描为准。',
+    loading: true,
+    errorText: '',
+    edgeWarningText: '',
+    showNodeNames: true,
+    floorNodeCount: 0,
+    floorEdgeCount: 0,
+    canvasWidth: 320,
+    canvasHeight: getCanvasHeight(320),
+    legendItems: [
+      { key: 'CURRENT', label: '当前位置', color: '#2563eb' },
+      { key: 'DESTINATION', label: '目的地', color: '#dc2626' },
+      { key: 'SEGMENT_END', label: '下一校准点', color: '#d97706' }
+    ]
+  },
+
+  onLoad(query = {}) {
+    const context = app.consumeMapViewContext?.() || null;
+    this.mapNodes = [];
+    this.mapEdges = [];
+    this.nodeById = new Map();
+    this.nodeByCode = new Map();
+    this.routePoints = [];
+    this.renderTimer = null;
+    this.routeSyncToken = 0;
+    this.setData({
+      mapMode: query.mode || context?.mode || 'browse'
+    });
+  },
+
+  onReady() {
+    this.initializePage();
+  },
+
+  onShow() {
+    this.syncView();
+  },
+
+  onUnload() {
+    if (this.renderTimer) {
+      clearTimeout(this.renderTimer);
+      this.renderTimer = null;
+    }
+  },
+
+  async initializePage() {
+    try {
+      await this.ensureCanvasSize();
+      await this.ensureMapData();
+      await this.syncView();
+    } catch (error) {
+      this.setData({
+        loading: false,
+        errorText: error?.message || '地图数据加载失败'
+      });
+    }
+  },
+
+  async ensureMapData() {
+    if (this.mapNodes.length) {
+      return;
+    }
+
+    this.setData({ loading: true, errorText: '', edgeWarningText: '' });
+
+    const nodes = await fetchMapNodes();
+    this.mapNodes = Array.isArray(nodes) ? nodes : [];
+    this.nodeById = new Map();
+    this.nodeByCode = new Map();
+    this.mapNodes.forEach((node) => {
+      const id = Number(node?.nodeId ?? node?.id);
+      if (Number.isFinite(id) && id > 0 && !this.nodeById.has(id)) {
+        this.nodeById.set(id, node);
+      }
+
+      const code = String(node?.nodeCode ?? '').trim();
+      if (code && !this.nodeByCode.has(code)) {
+        this.nodeByCode.set(code, node);
+      }
+    });
+    if (!this.mapNodes.length) {
+      throw new Error('地图节点数据为空');
+    }
+
+    try {
+      const edges = await fetchMapEdges();
+      this.mapEdges = Array.isArray(edges) ? edges : [];
+    } catch (error) {
+      this.mapEdges = [];
+      this.setData({
+        edgeWarningText: '边线数据加载失败，已切换为纯节点地图。'
+      });
+    }
+
+    this.setData({ loading: false });
+  },
+
+  ensureCanvasSize() {
+    return new Promise((resolve) => {
+      wx.nextTick(() => {
+        const query = wx.createSelectorQuery().in(this);
+        query.select('.map-stage').boundingClientRect();
+        query.exec((result) => {
+          const rect = result && result[0];
+          const width = Math.max(Math.round(rect?.width || 320), 280);
+          this.setData({
+            canvasWidth: width,
+            canvasHeight: getCanvasHeight(width)
+          }, resolve);
+        });
+      });
+    });
+  },
+
+  handleFloorSwitch(event) {
+    const { key } = event.currentTarget.dataset;
+    const option = getMapOptionByKey(key);
+    if (!option) {
+      return;
+    }
+
+    this.setData({ hasCustomSelection: true });
+    this.applyActiveFloor(option);
+    this.scheduleRender();
+  },
+
+  handleBackToNavigation() {
+    const session = getNavigationSession(app);
+    if (!session?.destination?.nodeId && !session?.destination?.id) {
+      wx.showToast({
+        title: '暂无导航会话',
+        icon: 'none'
+      });
+      return;
+    }
+
+    wx.navigateTo({
+      url: '/pages/navigation/navigation'
+    });
+  },
+
+  async syncView() {
+    const session = getNavigationSession(app);
+    const currentNode = this.resolveKnownNode(session?.currentScannedNode || app.globalData.currentLocation || null);
+    const segmentEndNode = this.resolveKnownNode(session?.segmentEndNode || null);
+    const destination = this.resolveKnownNode(session?.destination || app.globalData.destination || null);
+    const preferredFloor = getRecommendedFloor({
+      currentNode,
+      destination,
+      segmentEndNode,
+      mode: this.data.mapMode
+    });
+    const option = this.resolveActiveOption(preferredFloor);
+
+    this.currentNode = currentNode;
+    this.segmentEndNode = segmentEndNode;
+    this.destination = destination;
+    this.navigationSession = session;
+
+    this.applyActiveFloor(option, {
+      currentNode,
+      segmentEndNode,
+      destination
+    });
+    await this.syncRoutePoints({
+      session,
+      currentNode,
+      destination
+    });
+    this.scheduleRender();
+  },
+
+  async syncRoutePoints({ session, currentNode, destination }) {
+    const sessionPoints = Array.isArray(session?.segmentPoints) ? session.segmentPoints : [];
+    if (sessionPoints.length >= 2) {
+      this.routePoints = sessionPoints;
+      return;
+    }
+
+    const fromId = Number(currentNode?.nodeId ?? currentNode?.id);
+    const toId = Number(destination?.nodeId ?? destination?.id);
+    if (!Number.isFinite(fromId) || !Number.isFinite(toId) || fromId <= 0 || toId <= 0 || fromId === toId) {
+      this.routePoints = [];
+      return;
+    }
+
+    const token = Date.now();
+    this.routeSyncToken = token;
+    try {
+      const response = await fetchNavigationPath(fromId, toId);
+      if (this.routeSyncToken !== token) {
+        return;
+      }
+      this.routePoints = Array.isArray(response?.pathNodes) ? response.pathNodes : [];
+    } catch (error) {
+      if (this.routeSyncToken === token) {
+        this.routePoints = [];
+      }
+    }
+  },
+
+  resolveKnownNode(node) {
+    if (!node) {
+      return null;
+    }
+
+    const id = Number(node.nodeId ?? node.id);
+    const code = String(node.nodeCode ?? '').trim();
+    const matched = (Number.isFinite(id) && id > 0 && this.nodeById.get(id))
+      || (code && this.nodeByCode.get(code))
+      || null;
+
+    if (!matched) {
+      return node;
+    }
+
+    const merged = {
+      ...matched,
+      ...node
+    };
+
+    if (!Number.isFinite(Number(merged.floor ?? merged.floorNumber))) {
+      merged.floor = matched.floor ?? matched.floorNumber ?? merged.floor;
+      merged.floorNumber = matched.floor ?? matched.floorNumber ?? merged.floorNumber;
+    }
+
+    if (!hasValidCoordinates(node)) {
+      const fixedX = matched.planarX ?? matched.xCoordinate ?? matched.x;
+      const fixedY = matched.planarY ?? matched.yCoordinate ?? matched.y;
+      merged.planarX = fixedX;
+      merged.planarY = fixedY;
+      merged.xCoordinate = fixedX;
+      merged.yCoordinate = fixedY;
+      merged.coordinates = {
+        x: fixedX,
+        y: fixedY
+      };
+    }
+
+    return merged;
+  },
+
+  resolveActiveOption(preferredFloor) {
+    if (this.data.hasCustomSelection) {
+      return getMapOptionByKey(this.data.activeKey);
+    }
+    return getMapOptionByKey(`${preferredFloor}F`);
+  },
+
+  applyActiveFloor(option, state = {}) {
+    const currentNode = state.currentNode ?? this.currentNode ?? null;
+    const segmentEndNode = state.segmentEndNode ?? this.segmentEndNode ?? null;
+    const destination = state.destination ?? this.destination ?? null;
+
+    this.setData({
+      activeKey: option.key,
+      activeTitle: option.title,
+      activeFloor: option.floor,
+      currentNode,
+      segmentEndNode,
+      destination,
+      currentSummary: resolveNodeName(currentNode, '尚未定位'),
+      segmentEndSummary: resolveNodeName(segmentEndNode, '暂无下一校准点'),
+      destinationSummary: resolveNodeName(destination, '尚未选择'),
+      guidanceText: getGuidanceText({
+        floor: option.floor,
+        mode: this.data.mapMode,
+        currentNode,
+        destination,
+        segmentEndNode
+      })
+    });
+  },
+
+  scheduleRender() {
+    if (this.renderTimer) {
+      clearTimeout(this.renderTimer);
+    }
+
+    this.renderTimer = setTimeout(() => {
+      this.renderTimer = null;
+      this.renderScene();
+    }, 40);
+  },
+
+  renderScene() {
+    if (this.data.errorText || !this.data.canvasWidth || !this.mapNodes.length) {
+      return;
+    }
+
+    const scene = buildMapScene({
+      floor: this.data.activeFloor,
+      nodes: this.mapNodes,
+      edges: this.mapEdges,
+      routePoints: this.routePoints || [],
+      markerNodes: {
+        CURRENT: this.currentNode,
+        DESTINATION: this.destination,
+        SEGMENT_END: this.segmentEndNode
+      }
+    });
+
+    const ctx = wx.createCanvasContext('floorCanvas', this);
+    const scaleX = this.data.canvasWidth / scene.width;
+    const scaleY = this.data.canvasHeight / scene.height;
+
+    ctx.clearRect(0, 0, this.data.canvasWidth, this.data.canvasHeight);
+    ctx.save();
+    ctx.scale(scaleX, scaleY);
+
+    const unitScale = 1 / Math.min(scaleX, scaleY);
+
+    this.drawBoard(ctx, scene, unitScale);
+    this.drawGrid(ctx, scene, unitScale);
+    this.drawEdges(ctx, scene, unitScale);
+    this.drawRoute(ctx, scene, unitScale);
+    this.drawNodes(ctx, scene, unitScale);
+    if (this.data.showNodeNames) {
+      this.drawNodeLabels(ctx, scene, unitScale);
+    }
+    this.drawMarkers(ctx, scene, unitScale);
+
+    ctx.restore();
+    ctx.draw();
+
+    if (scene.nodes.length !== this.data.floorNodeCount || scene.edges.length !== this.data.floorEdgeCount) {
+      this.setData({
+        floorNodeCount: scene.nodes.length,
+        floorEdgeCount: scene.edges.length
+      });
+    }
+  },
+
+  drawBoard(ctx, scene, unitScale) {
+    ctx.setFillStyle('#f7fbff');
+    ctx.fillRect(0, 0, scene.width, scene.height);
+
+    ctx.setStrokeStyle('rgba(47, 111, 159, 0.18)');
+    ctx.setLineWidth(1.2 * unitScale);
+    ctx.strokeRect(1, 1, scene.width - 2, scene.height - 2);
+  },
+
+  drawGrid(ctx, scene, unitScale) {
+    ctx.setStrokeStyle('rgba(148, 163, 184, 0.18)');
+    ctx.setLineWidth(0.8 * unitScale);
+
+    scene.gridX.forEach((x) => {
+      ctx.beginPath();
+      ctx.moveTo(x, MAP_VIEWPORT.padding.top);
+      ctx.lineTo(x, scene.height - MAP_VIEWPORT.padding.bottom);
+      ctx.stroke();
+    });
+
+    scene.gridY.forEach((y) => {
+      ctx.beginPath();
+      ctx.moveTo(MAP_VIEWPORT.padding.left, y);
+      ctx.lineTo(scene.width - MAP_VIEWPORT.padding.right, y);
+      ctx.stroke();
+    });
+  },
+
+  drawEdges(ctx, scene, unitScale) {
+    ctx.setStrokeStyle('rgba(37, 99, 235, 0.82)');
+    ctx.setLineWidth(3.8 * unitScale);
+    ctx.setLineCap('round');
+
+    scene.edges.forEach((edge) => {
+      ctx.beginPath();
+      ctx.moveTo(edge.x1, edge.y1);
+      ctx.lineTo(edge.x2, edge.y2);
+      ctx.stroke();
+    });
+  },
+
+  drawRoute(ctx, scene, unitScale) {
+    if (!scene.route.length) {
+      return;
+    }
+
+    ctx.setStrokeStyle('#16a34a');
+    ctx.setLineWidth(3.6 * unitScale);
+    ctx.setLineCap('round');
+    ctx.setLineJoin('round');
+
+    ctx.beginPath();
+    scene.route.forEach((point, index) => {
+      if (index === 0) {
+        ctx.moveTo(point.renderX, point.renderY);
+        return;
+      }
+      ctx.lineTo(point.renderX, point.renderY);
+    });
+    ctx.stroke();
+  },
+
+  drawNodes(ctx, scene, unitScale) {
+    scene.nodes.forEach((node) => {
+      ctx.setFillStyle('#ffffff');
+      ctx.beginPath();
+      ctx.arc(node.renderX, node.renderY, 6.8 * unitScale, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.setStrokeStyle('rgba(15, 23, 42, 0.35)');
+      ctx.setLineWidth(1.5 * unitScale);
+      ctx.beginPath();
+      ctx.arc(node.renderX, node.renderY, 6.8 * unitScale, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Keep regular nodes neutral so legend colors are reserved for map markers.
+      ctx.setFillStyle('#64748b');
+      ctx.beginPath();
+      ctx.arc(node.renderX, node.renderY, 3.4 * unitScale, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  },
+
+  getLabelAnchor(pointX, pointY, scene, unitScale) {
+    const centerX = scene.width / 2;
+    const centerY = scene.height / 2;
+    const horizontal = pointX > centerX ? 'left' : 'right';
+    const vertical = pointY < centerY ? 'down' : 'up';
+    const dx = horizontal === 'right' ? 11 * unitScale : -11 * unitScale;
+    const dy = vertical === 'up' ? -10 * unitScale : 10 * unitScale;
+    return {
+      horizontal,
+      dx,
+      dy
+    };
+  },
+
+  drawNodeLabels(ctx, scene, unitScale) {
+    ctx.setFontSize(10 * unitScale);
+    ctx.setTextBaseline('middle');
+    const placedBoxes = [];
+    const createCandidates = (node, boxWidth, boxHeight) => {
+      const offsets = [
+        { dx: 11 * unitScale, dy: -10 * unitScale, align: 'right' },
+        { dx: 11 * unitScale, dy: 10 * unitScale, align: 'right' },
+        { dx: -(11 * unitScale + boxWidth), dy: -10 * unitScale, align: 'left' },
+        { dx: -(11 * unitScale + boxWidth), dy: 10 * unitScale, align: 'left' },
+        { dx: -(boxWidth / 2), dy: -(16 * unitScale), align: 'center' },
+        { dx: -(boxWidth / 2), dy: 16 * unitScale, align: 'center' }
+      ];
+      return offsets.map((offset) => ({
+        left: node.renderX + offset.dx,
+        top: node.renderY + offset.dy - boxHeight / 2,
+        align: offset.align
+      }));
+    };
+    const overlapArea = (a, b) => {
+      const width = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+      const height = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+      return width * height;
+    };
+
+    scene.nodes.forEach((node) => {
+      const label = node.label || '';
+      if (!label) {
+        return;
+      }
+
+      const textWidth = Math.min(ctx.measureText(label).width, 76 * unitScale);
+      const boxWidth = textWidth + 10 * unitScale;
+      const boxHeight = 12 * unitScale;
+      const candidates = createCandidates(node, boxWidth, boxHeight);
+      let best = null;
+      let bestPenalty = Number.POSITIVE_INFINITY;
+
+      candidates.forEach((candidate) => {
+        const box = {
+          left: candidate.left,
+          right: candidate.left + boxWidth,
+          top: candidate.top,
+          bottom: candidate.top + boxHeight
+        };
+        const penalty = placedBoxes.reduce((sum, existing) => sum + overlapArea(box, existing), 0);
+        if (penalty < bestPenalty) {
+          bestPenalty = penalty;
+          best = { box, candidate };
+        }
+      });
+
+      let baseX = best.box.left;
+      let baseY = best.box.top;
+
+      // Final fallback: force a shifted row so every node keeps a label.
+      if (!Number.isFinite(bestPenalty)) {
+        baseX = node.renderX + 12 * unitScale;
+        baseY = node.renderY + ((placedBoxes.length % 4) - 1.5) * 13 * unitScale;
+      }
+
+      ctx.setFillStyle('rgba(255,255,255,0.94)');
+      ctx.fillRect(baseX, baseY, boxWidth, boxHeight);
+
+      ctx.setStrokeStyle('rgba(15, 23, 42, 0.12)');
+      ctx.setLineWidth(0.6 * unitScale);
+      ctx.strokeRect(baseX, baseY, boxWidth, boxHeight);
+
+      ctx.setFillStyle('#334155');
+      ctx.setTextAlign('left');
+      ctx.fillText(label, baseX + 5 * unitScale, baseY + boxHeight / 2);
+      placedBoxes.push({
+        left: baseX,
+        right: baseX + boxWidth,
+        top: baseY,
+        bottom: baseY + boxHeight
+      });
+    });
+  },
+
+  drawMarkers(ctx, scene, unitScale) {
+    ctx.setFontSize(11 * unitScale);
+    ctx.setTextBaseline('middle');
+    scene.markers.forEach((marker) => {
+      ctx.setStrokeStyle(marker.color);
+      ctx.setLineWidth(3.2 * unitScale);
+      ctx.beginPath();
+      ctx.arc(marker.renderX, marker.renderY, 11.5 * unitScale, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.setFillStyle('#ffffff');
+      ctx.beginPath();
+      ctx.arc(marker.renderX, marker.renderY, 6.8 * unitScale, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.setFillStyle(marker.color);
+      ctx.beginPath();
+      ctx.arc(marker.renderX, marker.renderY, 4.6 * unitScale, 0, Math.PI * 2);
+      ctx.fill();
+
+      const anchor = this.getLabelAnchor(marker.renderX, marker.renderY, scene, unitScale);
+      const label = marker.nodeName || marker.markerType;
+      const textWidth = Math.min(ctx.measureText(label).width, 112 * unitScale);
+      const boxWidth = textWidth + 12 * unitScale;
+      const boxHeight = 14 * unitScale;
+      const baseX = marker.renderX + anchor.dx + (anchor.horizontal === 'right' ? 0 : -boxWidth);
+      const baseY = marker.renderY + anchor.dy - boxHeight / 2;
+
+      ctx.setFillStyle('rgba(255,255,255,0.97)');
+      ctx.fillRect(baseX, baseY, boxWidth, boxHeight);
+
+      ctx.setStrokeStyle(marker.color);
+      ctx.setLineWidth(0.9 * unitScale);
+      ctx.strokeRect(baseX, baseY, boxWidth, boxHeight);
+
+      ctx.setFillStyle(marker.color);
+      ctx.setTextAlign('left');
+      ctx.fillText(label, baseX + 6 * unitScale, marker.renderY + anchor.dy);
+    });
+  }
+});
