@@ -1,5 +1,6 @@
 import { checkSession, get, resolveAssetUrl } from './utils/request.js';
 import { getStorage, setStorage } from './utils/storage.js';
+import { loadUserSettingsSync, normalizeUserSettings, saveUserSettingsSync } from './utils/user-settings.js';
 
 const normalizeUserInfo = (userInfo) => {
   if (!userInfo || typeof userInfo !== 'object') {
@@ -23,7 +24,8 @@ App({
     mapViewContext: null,
     navigationHistory: [],
     navState: 'UNLOCATED',
-    systemInfo: null
+    systemInfo: null,
+    userSettings: loadUserSettingsSync()
   },
 
   onLaunch() {
@@ -38,6 +40,7 @@ App({
       this.globalData.userInfo = authenticated ? (wx.getStorageSync('userInfo') || null) : null;
 
       await this.loadNavigationHistory();
+      this.globalData.userSettings = loadUserSettingsSync();
       await this.checkPermissions();
     } catch (error) {
       console.error('App initialization failed:', error);
@@ -164,5 +167,21 @@ App({
     const context = this.globalData.mapViewContext || null;
     this.globalData.mapViewContext = null;
     return context;
+  },
+
+  getUserSettings() {
+    const settings = this.globalData.userSettings || loadUserSettingsSync();
+    this.globalData.userSettings = normalizeUserSettings(settings);
+    return this.globalData.userSettings;
+  },
+
+  updateUserSettings(partial = {}) {
+    const current = this.getUserSettings();
+    const next = normalizeUserSettings({
+      ...current,
+      ...(partial || {})
+    });
+    this.globalData.userSettings = saveUserSettingsSync(next);
+    return this.globalData.userSettings;
   }
 });

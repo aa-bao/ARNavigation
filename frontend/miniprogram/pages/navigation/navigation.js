@@ -8,6 +8,8 @@ import {
   scanNavigationTarget
 } from '../../services/navigation-session.js';
 import { createNavigationSession, getSegmentHeading, normalizeNode } from '../../utils/navigation-transform.js';
+import { emitVibrationFeedback, emitVoiceBroadcast } from '../../utils/navigation-feedback.js';
+import { loadUserSettingsSync } from '../../utils/user-settings.js';
 
 const app = getApp();
 
@@ -49,10 +51,14 @@ Page({
   },
 
   onLoad() {
+    this.syncUserSettings();
+    this.lastFeedbackKey = '';
+    this.autoArSessionKey = '';
     this.initializePage();
   },
 
   onShow() {
+    this.syncUserSettings();
     this.applySession(getNavigationSession(app));
     this.startCompass();
   },
@@ -90,6 +96,10 @@ Page({
     await this.scanAndRefreshSession();
   },
 
+  syncUserSettings() {
+    this.userSettings = app.getUserSettings?.() || loadUserSettingsSync();
+  },
+
   applySession(session) {
     if (!session) {
       return;
@@ -123,6 +133,13 @@ Page({
       targetDirection: heading !== null ? Math.round(heading) : 0
     });
 
+    const feedbackKey = `${currentNode?.nodeId || ''}-${nextNode?.nodeId || ''}-${arrivedAtTarget ? 'arrived' : 'progress'}`;
+    if (feedbackKey !== this.lastFeedbackKey) {
+      this.lastFeedbackKey = feedbackKey;
+      emitVoiceBroadcast(this.userSettings, instructionText);
+      emitVibrationFeedback(this.userSettings, arrivedAtTarget ? 'long' : 'short');
+    }
+
     if (arrivedAtTarget) {
       app.updateNavState('ARRIVED');
       this.setData({
@@ -134,6 +151,30 @@ Page({
     }
 
     app.updateNavState('NAVIGATING');
+    this.maybeAutoStartAR(session);
+  },
+
+  maybeAutoStartAR(session) {
+    if (!this.userSettings?.autoStartAR) {
+      return;
+    }
+
+    if (!session || session.currentMode === 'ar' || this.data.arrivedAtTarget) {
+      return;
+    }
+
+    const sessionKey = `${session.currentScannedNode?.nodeId || ''}-${session.segmentEndNode?.nodeId || ''}`;
+    if (!sessionKey || this.autoArSessionKey === sessionKey) {
+      return;
+    }
+
+    this.autoArSessionKey = sessionKey;
+    setTimeout(() => {
+      if (this.data.currentMode === 'ar' || this.data.arrivedAtTarget) {
+        return;
+      }
+      this.enterARMode();
+    }, 280);
   },
 
   startCompass() {
@@ -221,6 +262,7 @@ Page({
       const currentNode = nodeCode ? await getNodeByCode(nodeCode).catch(() => null) : null;
       const resolvedNode = buildCurrentNodeFromScan(scanTarget, currentNode);
       await this.refreshSessionFromNode(resolvedNode);
+      emitVibrationFeedback(this.userSettings, 'short');
     } catch (error) {
       this.setData({
         loading: false,
@@ -240,14 +282,17 @@ Page({
   },
 
   handleArrivedPrompt() {
+    const strictScan = this.userSettings?.highAccuracyLocation !== false;
     wx.showModal({
       title: '重新校准',
       content: this.data.isFinalSegment
         ? (this.data.arrivedAtTarget
           ? '您已在目标点附近，可以结束导航。'
           : '这是最后一段，请到达目标点二维码后再次扫描确认。')
-        : '请确认您已到达下一二维码点，然后扫描二维码校准位置。',
-      confirmText: this.data.arrivedAtTarget ? '结束导航' : '去扫码',
+        : (strictScan
+          ? '请确认您已到达下一二维码点，然后扫描二维码校准位置。'
+          : '已关闭“扫码校准优先”，可直接按下一点继续。'),
+      confirmText: this.data.arrivedAtTarget ? '结束导航' : (strictScan ? '去扫码' : '继续前进'),
       success: async ({ confirm }) => {
         if (!confirm) {
           return;
@@ -255,6 +300,15 @@ Page({
 
         if (this.data.arrivedAtTarget) {
           this.endNavigation();
+          return;
+        }
+
+        if (!strictScan) {
+          if (!this.data.nextNode) {
+            await this.scanAndRefreshSession();
+            return;
+          }
+          await this.refreshSessionFromNode(this.data.nextNode);
           return;
         }
 
