@@ -27,6 +27,17 @@ export interface Location {
 // 医院节点类型别名，用于兼容现有代码
 export type HospitalNode = Location
 
+export interface HospitalEdge {
+  id?: number
+  fromNodeId: number
+  toNodeId: number
+  distance?: number
+  isAccessible?: number
+  isStairs?: number
+  isElevator?: number
+  directionAngle?: number
+}
+
 // 地点类型枚举
 export enum NodeType {
   ENTRANCE = 'ENTRANCE',
@@ -77,4 +88,15 @@ export function deleteLocation(id: number) {
 // 获取节点类型列表
 export function getNodeTypes() {
   return get('/navigation/nodeTypes')
+}
+
+export async function getLocationEdges(floor?: number): Promise<HospitalEdge[]> {
+  const response = await get('/navigation/edges', floor ? { floor } : undefined)
+
+  if (Array.isArray(response)) {
+    return response
+  }
+
+  const result = response as ApiResult<HospitalEdge[]>
+  return Array.isArray(result?.data) ? result.data : []
 }

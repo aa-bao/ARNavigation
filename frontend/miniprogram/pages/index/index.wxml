@@ -7,6 +7,28 @@
     </view>
   </view>
 
+  <view class="nav-progress-section" wx:if="{{navState === 'NAVIGATING'}}">
+    <view class="card nav-progress-card">
+      <text class="nav-progress-title">导航进行中</text>
+      <text class="nav-progress-desc">可继续按指引扫码校准，或先返回地图查看当前楼层。</text>
+      <view class="nav-progress-actions">
+        <button class="btn btn-primary" bindtap="continueNavigation">继续导航</button>
+        <button class="btn btn-secondary" bindtap="openMapFromHome">查看地图</button>
+        <button class="btn btn-secondary" bindtap="stopNavigation">结束导航</button>
+      </view>
+    </view>
+  </view>
+
+  <view class="nav-progress-section" wx:if="{{navState === 'ARRIVED'}}">
+    <view class="card nav-progress-card">
+      <text class="nav-progress-title">已到达目的地</text>
+      <text class="nav-progress-desc">可以结束本次导航，或重新选择目的地发起下一次导航。</text>
+      <view class="nav-progress-actions">
+        <button class="btn btn-primary" bindtap="stopNavigation">完成并返回就绪</button>
+      </view>
+    </view>
+  </view>
+
   <view class="scan-section" wx:if="{{navState === 'UNLOCATED'}}">
     <view class="scan-card">
       <view class="scan-icon-container" bindtap="handleScan">
