@@ -73,4 +73,12 @@ public class AdminUserController {
         userService.resetPassword(authorizationHeader, id, request);
         return Result.success(null, "密码修改成功");
     }
+
+    @DeleteMapping("/{id}")
+    public Result<Void> deleteUser(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @PathVariable Long id) {
+        userService.deleteUser(authorizationHeader, id);
+        return Result.success(null, "删除成功");
+    }
 }

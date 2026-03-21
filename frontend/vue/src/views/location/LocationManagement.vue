@@ -1,13 +1,16 @@
-<template>
+﻿<template>
   <div class="page-shell">
     <section class="page-hero">
       <div>
         <p class="hero-kicker">Location Registry</p>
         <h1>地点管理</h1>
-        <p class="hero-text">维护院内导航节点、楼层坐标与业务类型信息。</p>
+        <p class="hero-text">维护院内导航节点、楼层坐标与业务类型，支持搜索、批量导入导出和二维码生成。</p>
       </div>
       <div class="hero-actions">
+        <el-button type="success" plain @click="triggerImport">导入 CSV</el-button>
+        <el-button type="info" plain @click="handleExportCsv">导出 CSV</el-button>
         <el-button type="primary" @click="handleAdd">新增地点</el-button>
+        <input ref="fileInputRef" type="file" accept=".csv" class="hidden-input" @change="handleImportCsv" />
       </div>
     </section>
 
@@ -23,33 +26,18 @@
 
       <el-form :inline="true" :model="searchForm" class="search-form">
         <el-form-item label="节点名称">
-          <el-input
-            v-model="searchForm.nodeName"
-            placeholder="输入节点名称"
-            clearable
-            @keyup.enter="handleSearch"
-          />
+          <el-input v-model="searchForm.nodeName" placeholder="输入节点名称" clearable @keyup.enter="handleSearch" />
         </el-form-item>
         <el-form-item label="节点类型">
           <el-select v-model="searchForm.nodeType" placeholder="选择节点类型" clearable>
             <el-option label="全部" value="" />
-            <el-option
-              v-for="type in nodeTypeList"
-              :key="type.value"
-              :label="type.label"
-              :value="type.value"
-            />
+            <el-option v-for="type in nodeTypeList" :key="type.value" :label="type.label" :value="type.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="楼层">
           <el-select v-model="searchForm.floor" placeholder="选择楼层" clearable>
             <el-option label="全部" value="" />
-            <el-option
-              v-for="floor in floorList"
-              :key="floor"
-              :label="`${floor} 楼`"
-              :value="floor"
-            />
+            <el-option v-for="floor in floorList" :key="floor" :label="`${floor} 楼`" :value="floor" />
           </el-select>
         </el-form-item>
         <el-form-item class="action-group">
@@ -88,7 +76,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="坐标" width="160">
+        <el-table-column label="坐标" width="180">
           <template #default="{ row }">
             <span>{{ row.xCoordinate }}, {{ row.yCoordinate }}</span>
           </template>
@@ -98,9 +86,7 @@
           <template #default="{ row }">
             <el-button link type="primary" :icon="Edit" @click="handleEdit(row)">编辑</el-button>
             <el-button link type="danger" :icon="Delete" @click="handleDelete(row)">删除</el-button>
-            <el-button link type="success" :icon="Picture" @click="handleGenerateQRCode(row)">
-              二维码
-            </el-button>
+            <el-button link type="success" :icon="Picture" @click="handleGenerateQRCode(row)">二维码</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -136,22 +122,12 @@
           </el-form-item>
           <el-form-item label="楼层" prop="floor">
             <el-select v-model="formData.floor" placeholder="选择楼层">
-              <el-option
-                v-for="floor in floorList"
-                :key="floor"
-                :label="`${floor} 楼`"
-                :value="floor"
-              />
+              <el-option v-for="floor in floorList" :key="floor" :label="`${floor} 楼`" :value="floor" />
             </el-select>
           </el-form-item>
           <el-form-item label="节点类型" prop="nodeType">
             <el-select v-model="formData.nodeType" placeholder="选择节点类型">
-              <el-option
-                v-for="type in nodeTypeList"
-                :key="type.value"
-                :label="type.label"
-                :value="type.value"
-              />
+              <el-option v-for="type in nodeTypeList" :key="type.value" :label="type.label" :value="type.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="X 坐标" prop="xCoordinate">
@@ -187,7 +163,7 @@
     <el-dialog v-model="qrDialogVisible" title="节点二维码" width="420px">
       <div class="qrcode-wrapper">
         <div ref="qrCodeRef" class="qrcode"></div>
-        <p class="qrcode-tip">使用微信小程序扫描二维码后，可直接进入对应导航节点。</p>
+        <p class="qrcode-tip">扫码后可直达对应导航节点。</p>
       </div>
       <template #footer>
         <el-button @click="qrDialogVisible = false">关闭</el-button>
@@ -199,8 +175,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { del, get, getErrorMessage, post, put } from '@/utils/request'
-import { ElMessage } from 'element-plus'
+import { ElMessage, type FormInstance } from 'element-plus'
 import {
   Delete,
   Download,
@@ -211,8 +186,18 @@ import {
   WarningFilled
 } from '@element-plus/icons-vue'
 import QRCode from 'qrcode'
-import type { HospitalNode } from '@/api/location'
-import { NodeType } from '@/api/location'
+import {
+  NodeType,
+  createLocation,
+  deleteLocation,
+  getLocationList,
+  updateLocation,
+  type HospitalNode,
+  type Location
+} from '@/api/location'
+import { useOperationLog } from '@/composables/useOperationLog'
+import { useUserStore } from '@/stores/user'
+import { getErrorMessage } from '@/utils/request'
 
 const nodeTypeList = [
   { value: NodeType.ENTRANCE, label: '入口' },
@@ -227,6 +212,8 @@ const nodeTypeList = [
   { value: NodeType.NURSE_STATION, label: '护士站' },
   { value: NodeType.BEDROOM, label: '病房' }
 ]
+const userStore = useUserStore()
+const { add: addLog } = useOperationLog()
 
 const floorList = [-3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
@@ -251,8 +238,9 @@ const qrDialogVisible = ref(false)
 const isEdit = ref(false)
 const currentRow = ref<HospitalNode | null>(null)
 const qrCodeRef = ref<HTMLElement>()
+const fileInputRef = ref<HTMLInputElement>()
 
-const formRef = ref()
+const formRef = ref<FormInstance>()
 const formData = reactive<HospitalNode>({
   nodeCode: '',
   nodeName: '',
@@ -282,16 +270,26 @@ const formRules = {
   nodeType: [{ required: true, message: '请选择节点类型', trigger: 'change' }]
 }
 
+const getOperatorName = () => userStore.userInfo?.nickname || userStore.userInfo?.username || '管理员'
+const logAction = (module: 'location' | 'qrcode', action: string, target: string, detail?: string) => {
+  void addLog({
+    module,
+    action,
+    target,
+    detail,
+    operator: getOperatorName()
+  })
+}
+
 const allLocationList = ref<HospitalNode[]>([])
 
 const loadLocations = async () => {
   loading.value = true
   try {
-    const res = await get('/location/list', { page: 1, pageSize: 100 })
-    allLocationList.value = res.data || res || []
+    const rows = await getLocationList()
+    allLocationList.value = rows || []
     pagination.total = allLocationList.value.length
-  } catch (error: any) {
-    console.error('加载地点数据失败:', error)
+  } catch (error) {
     ElMessage.error(getErrorMessage(error, '加载地点数据失败'))
     allLocationList.value = []
     pagination.total = 0
@@ -384,12 +382,12 @@ const confirmDelete = async () => {
 
   deleteLoading.value = true
   try {
-    await del(`/navigation/node/${currentRow.value.id}`)
+    await deleteLocation(currentRow.value.id)
+    logAction('location', '删除地点', currentRow.value.nodeCode, currentRow.value.nodeName)
     ElMessage.success('删除成功')
     deleteDialogVisible.value = false
     await loadLocations()
-  } catch (error: any) {
-    console.error('删除失败:', error)
+  } catch (error) {
     ElMessage.error(getErrorMessage(error, '删除失败'))
   } finally {
     deleteLoading.value = false
@@ -419,8 +417,9 @@ const handleGenerateQRCode = async (row: HospitalNode) => {
   try {
     await QRCode.toCanvas(canvas, qrData, { width: 256 })
     qrCodeRef.value.appendChild(canvas)
-  } catch (error) {
-    console.error('二维码生成失败:', error)
+    logAction('qrcode', '生成二维码', row.nodeCode, row.nodeName)
+  } catch {
+    ElMessage.error('二维码生成失败')
   }
 }
 
@@ -434,34 +433,161 @@ const handleDownloadQRCode = () => {
   link.download = `${currentRow.value?.nodeCode || 'qrcode'}.png`
   link.href = canvas.toDataURL()
   link.click()
+  logAction('qrcode', '下载二维码', currentRow.value?.nodeCode || 'qrcode')
   ElMessage.success('下载成功')
 }
+
+const buildPayload = (row: HospitalNode): Location => ({
+  nodeCode: row.nodeCode.trim(),
+  nodeName: row.nodeName.trim(),
+  floor: Number(row.floor),
+  xCoordinate: Number(row.xCoordinate),
+  yCoordinate: Number(row.yCoordinate),
+  nodeType: row.nodeType,
+  description: row.description || ''
+})
 
 const handleSubmit = async () => {
   if (!formRef.value) return
 
-  await formRef.value.validate(async (valid: boolean) => {
+  await formRef.value.validate(async valid => {
     if (!valid) return
 
     submitLoading.value = true
     try {
+      const payload = buildPayload(formData)
       if (isEdit.value && currentRow.value?.id) {
-        await put(`/navigation/node/${currentRow.value.id}`, formData)
+        await updateLocation(currentRow.value.id, payload)
+        logAction('location', '编辑地点', payload.nodeCode, payload.nodeName)
         ElMessage.success('更新成功')
       } else {
-        await post('/navigation/node', formData)
+        await createLocation(payload)
+        logAction('location', '新增地点', payload.nodeCode, payload.nodeName)
         ElMessage.success('新增成功')
       }
 
       dialogVisible.value = false
       await loadLocations()
-    } catch (error: any) {
-      console.error('保存失败:', error)
+    } catch (error) {
       ElMessage.error(getErrorMessage(error, '保存失败'))
     } finally {
       submitLoading.value = false
     }
   })
+}
+
+const parseCsv = (text: string): HospitalNode[] => {
+  const lines = text
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+
+  if (lines.length < 2) return []
+
+  const header = lines[0].split(',').map(item => item.trim())
+  const expected = ['nodeCode', 'nodeName', 'floor', 'xCoordinate', 'yCoordinate', 'nodeType', 'description']
+  if (expected.some((key, index) => header[index] !== key)) {
+    throw new Error('CSV 表头不正确，请使用导出模板')
+  }
+
+  return lines.slice(1).map((line, rowIndex) => {
+    const cells = line.split(',')
+    if (cells.length < 6) {
+      throw new Error(`第 ${rowIndex + 2} 行字段不足`)
+    }
+
+    const nodeType = cells[5]?.trim() as NodeType
+    if (!nodeTypeList.some(item => item.value === nodeType)) {
+      throw new Error(`第 ${rowIndex + 2} 行节点类型非法: ${cells[5]}`)
+    }
+
+    return {
+      nodeCode: (cells[0] || '').trim(),
+      nodeName: (cells[1] || '').trim(),
+      floor: Number(cells[2]),
+      xCoordinate: Number(cells[3]),
+      yCoordinate: Number(cells[4]),
+      nodeType,
+      description: (cells[6] || '').trim()
+    }
+  })
+}
+
+const triggerImport = () => {
+  fileInputRef.value?.click()
+}
+
+const handleImportCsv = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  try {
+    const text = await file.text()
+    const rows = parseCsv(text)
+    if (rows.length === 0) {
+      ElMessage.warning('CSV 无有效数据')
+      return
+    }
+
+    loading.value = true
+    let success = 0
+    const errors: string[] = []
+
+    for (const [index, row] of rows.entries()) {
+      try {
+        if (!row.nodeCode || !row.nodeName || Number.isNaN(row.floor) || Number.isNaN(row.xCoordinate) || Number.isNaN(row.yCoordinate)) {
+          throw new Error('必填字段为空或格式不正确')
+        }
+        await createLocation(buildPayload(row))
+        success += 1
+      } catch (error) {
+        errors.push(`第 ${index + 2} 行: ${getErrorMessage(error, '导入失败')}`)
+      }
+    }
+
+    await loadLocations()
+    if (errors.length === 0) {
+      logAction('location', '导入CSV', file.name, `成功=${success}`)
+      ElMessage.success(`导入成功，共 ${success} 条`)
+    } else {
+      logAction('location', '导入CSV', file.name, `成功=${success}, 失败=${errors.length}`)
+      ElMessage.warning(`导入完成，成功 ${success} 条，失败 ${errors.length} 条`)
+      console.warn('CSV 导入失败明细:', errors)
+    }
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '解析 CSV 失败'))
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleExportCsv = () => {
+  const header = 'nodeCode,nodeName,floor,xCoordinate,yCoordinate,nodeType,description'
+  const rows = allLocationList.value.map(item => {
+    const safeDescription = (item.description || '').replace(/,/g, '，').replace(/\r?\n/g, ' ')
+    return [
+      item.nodeCode,
+      item.nodeName,
+      item.floor,
+      item.xCoordinate,
+      item.yCoordinate,
+      item.nodeType,
+      safeDescription
+    ].join(',')
+  })
+
+  const csv = [header, ...rows].join('\n')
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `location-export-${Date.now()}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+  logAction('location', '导出CSV', '地点数据', `共${allLocationList.value.length}条`)
+  ElMessage.success('CSV 导出成功')
 }
 
 const resetForm = () => {
@@ -488,7 +614,7 @@ const handleCurrentChange = (page: number) => {
 }
 
 onMounted(() => {
-  loadLocations()
+  void loadLocations()
 })
 </script>
 
@@ -507,6 +633,16 @@ onMounted(() => {
   padding: 12px 4px 4px;
 }
 
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hidden-input {
+  display: none;
+}
+
 .hero-kicker,
 .panel-kicker {
   margin: 0;
@@ -519,7 +655,7 @@ onMounted(() => {
 .page-hero h1,
 .panel-header h2 {
   margin: 10px 0 0;
-  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
   font-weight: 600;
   color: #1f2a33;
 }
@@ -571,6 +707,14 @@ onMounted(() => {
   margin-bottom: 0;
 }
 
+.search-form :deep(.el-select) {
+  min-width: 140px;
+}
+
+.search-form :deep(.el-input) {
+  min-width: 220px;
+}
+
 .action-group {
   margin-left: auto;
 }
@@ -615,98 +759,12 @@ onMounted(() => {
   gap: 0 16px;
 }
 
-:deep(.location-dialog .el-dialog) {
-  border: 1px solid rgba(91, 109, 122, 0.18);
-  border-radius: 0;
-  overflow: hidden;
-  background: #fcfaf5;
-  box-shadow: 0 28px 56px rgba(31, 42, 51, 0.14);
-}
-
-:deep(.location-dialog .el-dialog__header) {
-  margin-right: 0;
-  padding: 22px 24px 18px;
-  border-bottom: 1px solid rgba(91, 109, 122, 0.12);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 243, 234, 0.92));
-}
-
-:deep(.location-dialog .el-dialog__title) {
-  color: #1f2a33;
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-:deep(.location-dialog .el-dialog__body) {
-  padding: 22px 24px 14px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0)),
-    #f8f3ea;
-}
-
-:deep(.location-dialog .el-dialog__footer) {
-  padding: 16px 24px 22px;
-  border-top: 1px solid rgba(91, 109, 122, 0.1);
-  background: rgba(255, 252, 247, 0.92);
-}
-
 :deep(.edit-form .el-form-item) {
   margin-bottom: 20px;
 }
 
-:deep(.edit-form .el-form-item__label) {
-  padding-bottom: 8px;
-  color: #31404a;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
 :deep(.edit-form .el-input-number) {
   width: 100%;
-}
-
-:deep(.edit-form .el-input__wrapper),
-:deep(.edit-form .el-select__wrapper),
-:deep(.edit-form .el-textarea__inner),
-:deep(.edit-form .el-input-number .el-input__wrapper) {
-  border: 1px solid rgba(91, 109, 122, 0.3);
-  background: #fffdfa;
-  min-height: 44px;
-  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
-}
-
-:deep(.edit-form .el-textarea__inner) {
-  min-height: 112px;
-  line-height: 1.7;
-}
-
-:deep(.edit-form .el-input__wrapper:hover),
-:deep(.edit-form .el-select__wrapper:hover),
-:deep(.edit-form .el-textarea__inner:hover),
-:deep(.edit-form .el-input-number .el-input__wrapper:hover) {
-  border-color: rgba(47, 111, 159, 0.42);
-}
-
-:deep(.edit-form .el-input__wrapper.is-focus),
-:deep(.edit-form .el-select__wrapper.is-focused),
-:deep(.edit-form .el-textarea__inner:focus),
-:deep(.edit-form .el-input-number .el-input__wrapper.is-focus) {
-  border-color: #2f6f9f;
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(47, 111, 159, 0.08);
-}
-
-:deep(.edit-form .el-input__inner),
-:deep(.edit-form .el-textarea__inner),
-:deep(.edit-form .el-select__placeholder),
-:deep(.edit-form .el-input-number .el-input__inner) {
-  color: #22303a;
-  font-size: 14px;
-}
-
-:deep(.edit-form .el-input__inner::placeholder),
-:deep(.edit-form .el-textarea__inner::placeholder) {
-  color: #8b98a2;
 }
 
 .delete-confirm {

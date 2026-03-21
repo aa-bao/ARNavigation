@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="page-shell">
     <section class="page-hero">
       <div>
@@ -63,11 +63,7 @@
       >
         <el-table-column type="selection" width="55" />
         <el-table-column prop="id" label="节点 ID" width="92" />
-        <el-table-column prop="nodeCode" label="节点编码" min-width="140">
-          <template #default="{ row }">
-            <span class="code-text">{{ row.nodeCode }}</span>
-          </template>
-        </el-table-column>
+        <el-table-column prop="nodeCode" label="节点编码" min-width="140" />
         <el-table-column prop="nodeName" label="节点名称" min-width="160" />
         <el-table-column prop="floor" label="楼层" width="100">
           <template #default="{ row }">
@@ -118,7 +114,7 @@
       <div class="qr-results-grid">
         <div v-for="result in qrResults" :key="result.nodeCode" class="qr-result-item">
           <div class="qr-preview-wrapper">
-            <img :src="result.qrDataUrl" class="qr-preview-image" alt="二维码预览">
+            <img :src="result.qrDataUrl" class="qr-preview-image" alt="二维码预览" />
           </div>
           <div class="qr-result-info">
             <div class="result-info-item">
@@ -148,6 +144,8 @@ import QRCode from 'qrcode'
 import { Close, DocumentCopy, Download, Select } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { TableInstance } from 'element-plus'
+import { useOperationLog } from '@/composables/useOperationLog'
+import { useUserStore } from '@/stores/user'
 import { getLocationList, NodeType } from '@/api/location'
 import type { HospitalNode } from '@/api/location'
 
@@ -165,6 +163,9 @@ const nodeTypeList = [
   { value: NodeType.BEDROOM, label: '病房' }
 ]
 
+const userStore = useUserStore()
+const { add: addLog } = useOperationLog()
+
 const loading = ref(false)
 const nodes = ref<HospitalNode[]>([])
 const selectedNodes = ref<HospitalNode[]>([])
@@ -176,6 +177,17 @@ const pagination = ref({
   pageSize: 10,
   total: 0
 })
+
+const getOperatorName = () => userStore.userInfo?.nickname || userStore.userInfo?.username || '管理员'
+const logQrAction = (action: string, target: string, detail?: string) => {
+  void addLog({
+    module: 'qrcode',
+    action,
+    target,
+    detail,
+    operator: getOperatorName()
+  })
+}
 
 const tableData = computed(() => {
   const start = (pagination.value.currentPage - 1) * pagination.value.pageSize
@@ -212,15 +224,10 @@ const loadNodes = async () => {
     const items = Array.isArray(response) ? response : []
     nodes.value = items
       .filter(node => node?.nodeCode)
-      .sort((left, right) => {
-        const leftCode = left.nodeCode ?? ''
-        const rightCode = right.nodeCode ?? ''
-        return leftCode.localeCompare(rightCode)
-      })
+      .sort((left, right) => (left.nodeCode || '').localeCompare(right.nodeCode || ''))
     pagination.value.total = nodes.value.length
     clearSelection()
-  } catch (error) {
-    console.error('加载节点列表失败:', error)
+  } catch {
     ElMessage.error('加载节点列表失败')
   } finally {
     loading.value = false
@@ -276,9 +283,9 @@ const generateSingleQRCode = async (node: HospitalNode) => {
       nodeName: node.nodeName,
       qrDataUrl
     })
+    logQrAction('生成二维码', node.nodeCode, node.nodeName)
     ElMessage.success('二维码生成成功')
-  } catch (error) {
-    console.error('二维码生成失败:', error)
+  } catch {
     ElMessage.error('二维码生成失败')
   } finally {
     loading.value = false
@@ -302,9 +309,9 @@ const batchGenerateQRCodes = async () => {
     )
 
     results.forEach(upsertResult)
+    logQrAction('批量生成二维码', `${results.length}个节点`)
     ElMessage.success(`已生成 ${results.length} 个二维码`)
-  } catch (error) {
-    console.error('批量生成二维码失败:', error)
+  } catch {
     ElMessage.error('批量生成二维码失败')
   } finally {
     loading.value = false
@@ -316,6 +323,7 @@ const downloadSingleQRCode = (result: { nodeCode: string; nodeName: string; qrDa
   link.download = `${result.nodeCode}_${result.nodeName}_qrcode.png`
   link.href = result.qrDataUrl
   link.click()
+  logQrAction('下载二维码', result.nodeCode, result.nodeName)
   ElMessage.success('下载成功')
 }
 
@@ -336,8 +344,8 @@ const batchDownloadQRCodes = async () => {
       })
       await new Promise(resolve => setTimeout(resolve, 180))
     }
-  } catch (error) {
-    console.error('批量下载失败:', error)
+    logQrAction('批量下载二维码', `${selectedNodes.value.length}个节点`)
+  } catch {
     ElMessage.error('批量下载失败')
   } finally {
     loading.value = false
@@ -356,8 +364,8 @@ const downloadAllQRCodes = async () => {
       downloadSingleQRCode(result)
       await new Promise(resolve => setTimeout(resolve, 180))
     }
-  } catch (error) {
-    console.error('下载全部二维码失败:', error)
+    logQrAction('下载全部二维码', `${qrResults.value.length}个结果`)
+  } catch {
     ElMessage.error('下载全部二维码失败')
   } finally {
     loading.value = false
@@ -376,7 +384,7 @@ const handleCurrentChange = (page: number) => {
 }
 
 onMounted(() => {
-  loadNodes()
+  void loadNodes()
 })
 </script>
 

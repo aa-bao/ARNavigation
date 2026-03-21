@@ -1,4 +1,5 @@
 import { get, post, put } from '@/utils/request'
+import { del } from '@/utils/request'
 import { unwrapApiResult } from './common'
 import type {
   AdminUserCreatePayload,
@@ -43,5 +44,10 @@ export const resetAdminUserPassword = async (id: UserId, newPassword = '123456')
 
 export const changeAdminUserPassword = async (id: UserId, newPassword: string): Promise<void> => {
   const response = await put(`/admin/users/${id}/password`, { newPassword })
+  unwrapApiResult(response)
+}
+
+export const deleteAdminUser = async (id: UserId): Promise<void> => {
+  const response = await del(`/admin/users/${id}`)
   unwrapApiResult(response)
 }

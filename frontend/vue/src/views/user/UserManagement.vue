@@ -1,15 +1,22 @@
-<template>
+﻿<template>
   <div class="page-shell">
     <section class="page-hero">
       <div>
         <p class="hero-kicker">User Access Control</p>
         <h1>用户管理</h1>
-        <p class="hero-text">维护后台管理员与小程序用户账号，支持搜索、编辑、启停用和密码修改。</p>
+        <p class="hero-text">维护后台管理员与小程序用户账号，支持检索、编辑、启停用、密码重置与批量操作。</p>
       </div>
       <div class="hero-actions">
         <el-button type="primary" :icon="Plus" @click="openCreateDialog">新建用户</el-button>
       </div>
     </section>
+
+    <el-row :gutter="12" class="stats-row">
+      <el-col :xs="12" :sm="12" :md="6"><div class="stat-item"><span>当前页用户</span><strong>{{ records.length }}</strong></div></el-col>
+      <el-col :xs="12" :sm="12" :md="6"><div class="stat-item"><span>管理员</span><strong>{{ pageStats.adminCount }}</strong></div></el-col>
+      <el-col :xs="12" :sm="12" :md="6"><div class="stat-item"><span>微信用户</span><strong>{{ pageStats.wechatCount }}</strong></div></el-col>
+      <el-col :xs="12" :sm="12" :md="6"><div class="stat-item"><span>启用账号</span><strong>{{ pageStats.enabledCount }}</strong></div></el-col>
+    </el-row>
 
     <el-card class="panel-card filters-card" shadow="never">
       <template #header>
@@ -22,7 +29,7 @@
       </template>
 
       <el-form :inline="true" :model="query" class="search-form">
-        <el-form-item label="关键词">
+        <el-form-item label="关键字">
           <el-input v-model="query.keyword" placeholder="用户名 / 昵称 / 手机号 / openid" clearable />
         </el-form-item>
         <el-form-item label="身份">
@@ -46,18 +53,35 @@
 
     <el-card class="panel-card table-card" shadow="never">
       <template #header>
-        <div class="panel-header">
+        <div class="panel-header table-header-wrap">
           <div>
             <p class="panel-kicker">User Register</p>
             <h2>用户列表</h2>
           </div>
-          <div class="header-summary">
-            <span>共 {{ total }} 个用户</span>
+          <div class="header-right">
+            <div class="header-summary">
+              <span>总计 {{ total }} 个用户</span>
+              <span class="selected-count">已选 {{ selectedRows.length }} 项</span>
+            </div>
+            <div class="batch-actions">
+              <el-button :disabled="selectedRows.length === 0" @click="handleBatchStatus('ENABLED')">批量启用</el-button>
+              <el-button :disabled="selectedRows.length === 0" @click="handleBatchStatus('DISABLED')">批量停用</el-button>
+              <el-button type="warning" :disabled="selectedRows.length === 0" @click="handleBatchResetPassword">
+                批量重置密码
+              </el-button>
+            </div>
           </div>
         </div>
       </template>
 
-      <el-table :data="records" v-loading="loading" style="width: 100%">
+      <el-table
+        ref="tableRef"
+        :data="records"
+        v-loading="loading"
+        style="width: 100%"
+        @selection-change="handleSelectionChange"
+      >
+        <el-table-column type="selection" width="55" />
         <el-table-column prop="id" label="用户 ID" width="92" />
         <el-table-column label="头像" width="92">
           <template #default="{ row }">
@@ -92,7 +116,7 @@
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" :icon="Edit" @click="openEditDialog(row)">编辑</el-button>
             <el-button
@@ -103,6 +127,7 @@
             >
               {{ row.status === 'ENABLED' ? '停用' : '启用' }}
             </el-button>
+            <el-button link type="danger" :icon="Delete" @click="handleDeleteUser(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -173,7 +198,7 @@
               >
                 <el-button type="primary" plain :loading="avatarUploading">上传头像</el-button>
               </el-upload>
-              <span class="avatar-tip">支持 png、jpg、webp，大小不超过 5MB</span>
+              <span class="avatar-tip">支持 png/jpg/webp，大小不超过 5MB</span>
             </div>
           </div>
         </el-form-item>
@@ -189,15 +214,25 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadRequestOptions } from 'element-plus'
-import { Edit, Plus, Refresh, Search, SwitchButton } from '@element-plus/icons-vue'
+import {
+  ElMessage,
+  ElMessageBox,
+  type FormInstance,
+  type FormRules,
+  type TableInstance,
+  type UploadRequestOptions
+} from 'element-plus'
+import { Delete, Edit, Plus, Refresh, Search, SwitchButton } from '@element-plus/icons-vue'
 import {
   createAdminUser,
+  deleteAdminUser,
   getAdminUserList,
+  resetAdminUserPassword,
   updateAdminUser,
   updateAdminUserStatus
 } from '@/api/admin-user'
 import { uploadUserAvatar } from '@/api/user'
+import { useOperationLog } from '@/composables/useOperationLog'
 import { useUserStore } from '@/stores/user'
 import { getErrorMessage, resolveAssetUrl } from '@/utils/request'
 import type {
@@ -211,6 +246,7 @@ import type {
 type DialogMode = 'create' | 'edit'
 
 const userStore = useUserStore()
+const { add: addLog } = useOperationLog()
 const loading = ref(false)
 const submitLoading = ref(false)
 const avatarUploading = ref(false)
@@ -218,9 +254,11 @@ const avatarVersion = ref(Date.now())
 const dialogVisible = ref(false)
 const dialogMode = ref<DialogMode>('create')
 const records = ref<AdminUserRecord[]>([])
+const selectedRows = ref<AdminUserRecord[]>([])
 const total = ref(0)
 const editingRow = ref<AdminUserRecord | null>(null)
 const formRef = ref<FormInstance>()
+const tableRef = ref<TableInstance>()
 
 const query = reactive({
   keyword: '',
@@ -241,6 +279,12 @@ const createDefaultForm = () => ({
 })
 
 const formModel = reactive(createDefaultForm())
+
+const pageStats = computed(() => ({
+  adminCount: records.value.filter(item => item.userType === 'ADMIN').length,
+  wechatCount: records.value.filter(item => item.userType === 'WECHAT').length,
+  enabledCount: records.value.filter(item => item.status === 'ENABLED').length
+}))
 
 const passwordVisible = computed(() => formModel.userType === 'ADMIN')
 
@@ -286,6 +330,16 @@ const formatDate = (value?: string) => {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false })
 }
 
+const logUserAction = (action: string, target: string, detail?: string) => {
+  void addLog({
+    module: 'user',
+    action,
+    target,
+    detail,
+    operator: userStore.userInfo?.nickname || userStore.userInfo?.username || '管理员'
+  })
+}
+
 const resetForm = () => {
   Object.assign(formModel, createDefaultForm())
   editingRow.value = null
@@ -300,6 +354,8 @@ const fetchUsers = async () => {
     const data = await getAdminUserList(query)
     records.value = data.records
     total.value = data.total
+    selectedRows.value = []
+    tableRef.value?.clearSelection()
     bumpAvatarVersion()
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '获取用户列表失败'))
@@ -314,6 +370,10 @@ const resetFilters = async () => {
   query.status = ''
   query.page = 1
   await fetchUsers()
+}
+
+const handleSelectionChange = (rows: AdminUserRecord[]) => {
+  selectedRows.value = rows
 }
 
 const openCreateDialog = () => {
@@ -375,6 +435,7 @@ const submitForm = async () => {
         status: formModel.status
       }
       await createAdminUser(payload)
+      logUserAction('创建用户', payload.username, `身份=${payload.userType}, 状态=${payload.status}`)
       ElMessage.success('创建成功')
     } else if (editingRow.value) {
       const payload: AdminUserUpdatePayload = {
@@ -386,6 +447,7 @@ const submitForm = async () => {
         status: formModel.status
       }
       await updateAdminUser(editingRow.value.id, payload)
+      logUserAction('编辑用户', editingRow.value.username, `身份=${payload.userType}, 状态=${payload.status}`)
       await refreshSelfAvatarIfNeeded()
       ElMessage.success('更新成功')
     }
@@ -406,11 +468,79 @@ const toggleStatus = async (row: AdminUserRecord) => {
       type: 'warning'
     })
     await updateAdminUserStatus(row.id, nextStatus)
+    logUserAction('变更状态', row.username, `新状态=${nextStatus}`)
     ElMessage.success('状态已更新')
     await fetchUsers()
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
       ElMessage.error(getErrorMessage(error, '更新状态失败'))
+    }
+  }
+}
+
+const handleBatchStatus = async (status: UserStatus) => {
+  if (selectedRows.value.length === 0) return
+
+  try {
+    await ElMessageBox.confirm(
+      `确认将 ${selectedRows.value.length} 个账号批量设为${status === 'ENABLED' ? '启用' : '停用'}吗？`,
+      '批量操作确认',
+      { type: 'warning' }
+    )
+
+    loading.value = true
+    for (const row of selectedRows.value) {
+      await updateAdminUserStatus(row.id, status)
+    }
+    logUserAction('批量状态更新', `${selectedRows.value.length}个用户`, `新状态=${status}`)
+    ElMessage.success('批量状态更新成功')
+    await fetchUsers()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(getErrorMessage(error, '批量状态更新失败'))
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleBatchResetPassword = async () => {
+  if (selectedRows.value.length === 0) return
+
+  try {
+    await ElMessageBox.confirm(
+      `确认将 ${selectedRows.value.length} 个账号密码重置为 123456 吗？`,
+      '批量重置确认',
+      { type: 'warning' }
+    )
+
+    loading.value = true
+    for (const row of selectedRows.value) {
+      await resetAdminUserPassword(row.id)
+    }
+    logUserAction('批量重置密码', `${selectedRows.value.length}个用户`, '默认密码=123456')
+    ElMessage.success('批量重置密码成功')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(getErrorMessage(error, '批量重置密码失败'))
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleDeleteUser = async (row: AdminUserRecord) => {
+  try {
+    await ElMessageBox.confirm(`确认删除用户 ${row.nickname || row.username}？删除后不可恢复。`, '删除确认', {
+      type: 'warning'
+    })
+    await deleteAdminUser(row.id)
+    logUserAction('删除用户', row.username)
+    ElMessage.success('删除成功')
+    await fetchUsers()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(getErrorMessage(error, '删除失败'))
     }
   }
 }
@@ -448,11 +578,10 @@ onMounted(() => {
   text-transform: uppercase;
 }
 
-
 .page-hero h1,
 .panel-header h2 {
   margin: 10px 0 0;
-  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
   font-weight: 600;
   color: #1f2a33;
 }
@@ -460,6 +589,29 @@ onMounted(() => {
 .hero-text {
   margin: 0;
   color: #63717d;
+}
+
+.stats-row {
+  margin-top: -8px;
+}
+
+.stat-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid rgba(91, 109, 122, 0.14);
+  background: rgba(255, 252, 247, 0.92);
+}
+
+.stat-item span {
+  color: #6f7c86;
+  font-size: 12px;
+}
+
+.stat-item strong {
+  color: #1f2a33;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 .panel-card {
@@ -480,9 +632,33 @@ onMounted(() => {
   color: #1f2a33;
 }
 
+.table-header-wrap {
+  align-items: flex-start;
+}
+
+.header-right {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
 .header-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   color: #6f7c86;
   font-size: 13px;
+}
+
+.selected-count {
+  color: #2f6f9f;
+}
+
+.batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .search-form {
@@ -494,6 +670,14 @@ onMounted(() => {
 .search-form :deep(.el-form-item) {
   margin-right: 16px;
   margin-bottom: 0;
+}
+
+.search-form :deep(.el-select) {
+  min-width: 140px;
+}
+
+.search-form :deep(.el-input) {
+  min-width: 240px;
 }
 
 .action-group {
@@ -551,9 +735,17 @@ onMounted(() => {
 
 @media (max-width: 900px) {
   .page-hero,
-  .panel-header {
+  .panel-header,
+  .table-header-wrap {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .header-right,
+  .batch-actions {
+    width: 100%;
+    justify-items: start;
+    justify-content: flex-start;
   }
 
   .action-group {

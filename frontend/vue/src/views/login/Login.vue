@@ -79,7 +79,7 @@ const handleLogin = async () => {
   try {
     await userStore.login(loginForm)
     ElMessage.success('登录成功')
-    await router.push('/')
+    await router.push('/dashboard')
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '登录失败，请重试'))
   } finally {

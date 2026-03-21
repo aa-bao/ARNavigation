@@ -37,4 +37,6 @@ public interface UserService {
     UserListItemResponse updateUserStatus(String authorizationHeader, Long id, UserStatusUpdateRequest request);
 
     void resetPassword(String authorizationHeader, Long id, PasswordResetRequest request);
+
+    void deleteUser(String authorizationHeader, Long id);
 }

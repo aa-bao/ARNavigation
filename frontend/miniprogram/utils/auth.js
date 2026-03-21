@@ -126,11 +126,15 @@ const loginWithCode = async (code, profile = {}) => {
 
   saveAuthSession(session);
 
-  const uploadedAvatarUrl = await syncWechatAvatar(rawAvatarUrl);
-  if (uploadedAvatarUrl) {
-    const updatedUserInfo = await put('/user/profile/avatar', { avatarUrl: uploadedAvatarUrl });
-    session.userInfo = normalizeUserInfo(updatedUserInfo) || session.userInfo;
-    saveAuthSession(session);
+  try {
+    const uploadedAvatarUrl = await syncWechatAvatar(rawAvatarUrl);
+    if (uploadedAvatarUrl) {
+      const updatedUserInfo = await put('/user/profile/avatar', { avatarUrl: uploadedAvatarUrl });
+      session.userInfo = normalizeUserInfo(updatedUserInfo) || session.userInfo;
+      saveAuthSession(session);
+    }
+  } catch (error) {
+    console.warn('wechat login: avatar sync failed', error);
   }
 
   return session;
@@ -153,13 +157,35 @@ const isTemporaryWechatAvatar = (avatarUrl) => {
   return true;
 };
 
+const isLocalFilePath = (path = '') => /^(wxfile|wdfile):\/\//i.test(String(path).trim());
+
+const downloadTempAvatar = (url) => new Promise((resolve, reject) => {
+  wx.downloadFile({
+    url,
+    success: (res) => {
+      if (res.statusCode >= 200 && res.statusCode < 300 && res.tempFilePath) {
+        resolve(res.tempFilePath);
+        return;
+      }
+      reject(new Error('涓嬭浇澶村儚澶辫触'));
+    },
+    fail: () => reject(new Error('涓嬭浇澶村儚澶辫触'))
+  });
+});
+
 const syncWechatAvatar = async (avatarUrl) => {
   if (!isTemporaryWechatAvatar(avatarUrl)) {
     return '';
   }
 
   console.log('wechat login: uploading chosen avatar');
-  const uploadResult = await uploadFile('/user/avatar', avatarUrl);
+  let uploadPath = avatarUrl;
+
+  if (!isLocalFilePath(uploadPath)) {
+    uploadPath = await downloadTempAvatar(uploadPath);
+  }
+
+  const uploadResult = await uploadFile('/user/avatar', uploadPath);
   return uploadResult?.avatarUrl || '';
 };
 

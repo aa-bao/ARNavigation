@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+﻿import { createRouter, createWebHistory } from 'vue-router'
 import BasicLayout from '@/layouts/BasicLayout.vue'
 import { useUserStore } from '@/stores/user'
 
@@ -22,6 +22,11 @@ const router = createRouter({
           component: () => import('@/views/location/LocationManagement.vue')
         },
         {
+          path: 'dashboard',
+          name: 'dashboard',
+          component: () => import('@/views/dashboard/index.vue')
+        },
+        {
           path: 'qrcode-batch',
           name: 'qrcode-batch',
           component: () => import('@/views/location/QRCodeBatch.vue')
@@ -35,6 +40,16 @@ const router = createRouter({
           path: 'users',
           name: 'user-management',
           component: () => import('@/views/user/UserManagement.vue')
+        },
+        {
+          path: 'navigation-records',
+          name: 'navigation-record-management',
+          component: () => import('@/views/user/NavigationRecordManagement.vue')
+        },
+        {
+          path: 'logs',
+          name: 'operation-log-center',
+          component: () => import('@/views/log/LogCenter.vue')
         }
       ]
     }
@@ -46,7 +61,7 @@ router.beforeEach(async to => {
 
   if (to.meta.requiresAuth === false) {
     if (to.path === '/login' && userStore.isLoggedIn) {
-      return '/'
+      return '/dashboard'
     }
     return true
   }

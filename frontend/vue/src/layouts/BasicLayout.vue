@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-container class="app-shell">
     <el-aside width="248px" class="app-sidebar">
       <div class="sidebar-head">
@@ -8,9 +8,17 @@
       </div>
 
       <el-menu :default-active="activeMenu" class="sidebar-menu" router>
+        <el-menu-item index="/dashboard">
+          <el-icon><Monitor /></el-icon>
+          <span>数据看板</span>
+        </el-menu-item>
         <el-menu-item index="/users">
           <el-icon><User /></el-icon>
           <span>用户管理</span>
+        </el-menu-item>
+        <el-menu-item index="/navigation-records">
+          <el-icon><Guide /></el-icon>
+          <span>导航记录</span>
         </el-menu-item>
         <el-menu-item index="/">
           <el-icon><Location /></el-icon>
@@ -23,6 +31,10 @@
         <el-menu-item index="/hospital-map">
           <el-icon><MapLocation /></el-icon>
           <span>医院地图</span>
+        </el-menu-item>
+        <el-menu-item index="/logs">
+          <el-icon><Document /></el-icon>
+          <span>操作日志</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -69,7 +81,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowDown, Location, MapLocation, Picture, User } from '@element-plus/icons-vue'
+import { ArrowDown, Document, Guide, Location, MapLocation, Monitor, Picture, User } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { resolveAssetUrl } from '@/utils/request'
 
@@ -80,9 +92,12 @@ const userStore = useUserStore()
 const activeMenu = computed(() => route.path)
 
 const pageTitle = computed(() => {
+  if (route.path === '/dashboard') return '数据看板'
   if (route.path === '/qrcode-batch') return '二维码批量生成'
   if (route.path === '/hospital-map') return '医院地图'
   if (route.path === '/users') return '用户管理'
+  if (route.path === '/navigation-records') return '导航记录管理'
+  if (route.path === '/logs') return '操作日志'
   return '地点管理'
 })
 

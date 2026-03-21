@@ -68,3 +68,30 @@ export interface AdminUserUpdatePayload {
   password?: string
   status: UserStatus
 }
+
+export interface AdminNavigationRecord {
+  id: number
+  userId: UserId
+  username?: string
+  nickname?: string
+  nodeId: number
+  nodeCode?: string
+  nodeName?: string
+  floor?: number
+  nodeType?: string
+  description?: string
+  lastNavigatedAt?: string
+  updatedAt?: string
+}
+
+export interface AdminNavigationRecordListPayload {
+  records: AdminNavigationRecord[]
+  total: number
+}
+
+export interface AdminNavigationRecordQuery {
+  page?: number
+  pageSize?: number
+  keyword?: string
+  userId?: number
+}

@@ -81,18 +81,18 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public LoginResponse adminLogin(AdminLoginRequest request) {
         if (isBlank(request.getUsername()) || isBlank(request.getPassword())) {
-            throw new IllegalArgumentException("用户名和密码不能为空");
+            throw new IllegalArgumentException("鐢ㄦ埛鍚嶅拰瀵嗙爜涓嶈兘涓虹┖");
         }
 
         AppUser user = appUserMapper.selectByUsername(request.getUsername().trim());
         if (user == null || !USER_TYPE_ADMIN.equals(user.getUserType())) {
-            throw new IllegalArgumentException("用户名或密码错误");
+            throw new IllegalArgumentException("鐢ㄦ埛鍚嶆垨瀵嗙爜閿欒");
         }
         if (!STATUS_ENABLED.equals(user.getStatus())) {
-            throw new IllegalArgumentException("账号已被禁用");
+            throw new IllegalArgumentException("璐﹀彿宸茶绂佺敤");
         }
         if (!PasswordUtils.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new IllegalArgumentException("用户名或密码错误");
+            throw new IllegalArgumentException("鐢ㄦ埛鍚嶆垨瀵嗙爜閿欒");
         }
 
         return buildLoginResponse(user, "ADMIN_PASSWORD");
@@ -102,7 +102,7 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public LoginResponse wechatLogin(WechatLoginRequest request) {
         if (isBlank(request.getCode())) {
-            throw new IllegalArgumentException("微信登录 code 不能为空");
+            throw new IllegalArgumentException("寰俊鐧诲綍 code 涓嶈兘涓虹┖");
         }
 
         WechatCode2SessionResponse sessionResponse = exchangeCodeForSession(request.getCode().trim());
@@ -133,7 +133,7 @@ public class UserServiceImpl implements UserService {
                 user.setAvatarUrl(request.getAvatarUrl().trim());
             }
             if (!STATUS_ENABLED.equals(user.getStatus())) {
-                throw new IllegalArgumentException("账号已被禁用");
+                throw new IllegalArgumentException("璐﹀彿宸茶绂佺敤");
             }
             appUserMapper.updateById(user);
         }
@@ -169,14 +169,14 @@ public class UserServiceImpl implements UserService {
             WechatCode2SessionResponse parsed = objectMapper.readValue(response.body(), WechatCode2SessionResponse.class);
             if (parsed.errcode() != null && parsed.errcode() != 0) {
                 log.warn("WeChat code2Session failed: errcode={}, errmsg={}", parsed.errcode(), parsed.errmsg());
-                throw new IllegalArgumentException("微信授权登录失败，请重试");
+                throw new IllegalArgumentException("寰俊鎺堟潈鐧诲綍澶辫触锛岃閲嶈瘯");
             }
             return parsed;
         } catch (IllegalArgumentException ex) {
             throw ex;
         } catch (Exception ex) {
             log.error("WeChat code2Session request failed", ex);
-            throw new IllegalStateException("微信登录服务异常，请稍后重试");
+            throw new IllegalStateException("寰俊鐧诲綍鏈嶅姟寮傚父锛岃绋嶅悗閲嶈瘯");
         }
     }
 
@@ -206,7 +206,7 @@ public class UserServiceImpl implements UserService {
         AppUser user = requireUser(authorizationHeader);
         String avatarUrl = trimToNull(request.getAvatarUrl());
         if (isBlank(avatarUrl)) {
-            throw new IllegalArgumentException("头像地址不能为空");
+            throw new IllegalArgumentException("澶村儚鍦板潃涓嶈兘涓虹┖");
         }
         user.setAvatarUrl(avatarUrl);
         appUserMapper.updateById(user);
@@ -268,7 +268,7 @@ public class UserServiceImpl implements UserService {
         }
         String userType = normalizeUserType(request.getUserType(), USER_TYPE_ADMIN);
         if (appUserMapper.selectByUsername(request.getUsername().trim()) != null) {
-            throw new IllegalArgumentException("用户名已存在");
+            throw new IllegalArgumentException("鐢ㄦ埛鍚嶅凡瀛樺湪");
         }
         if (USER_TYPE_ADMIN.equals(userType) && isBlank(request.getPassword())) {
             throw new IllegalArgumentException("管理员密码不能为空");
@@ -334,11 +334,26 @@ public class UserServiceImpl implements UserService {
         requireAdmin(authorizationHeader);
         AppUser user = getUserById(id);
         if (!USER_TYPE_ADMIN.equals(user.getUserType())) {
-            throw new IllegalArgumentException("仅管理员支持重置密码");
+            throw new IllegalArgumentException("浠呯鐞嗗憳鏀寔閲嶇疆瀵嗙爜");
         }
         String newPassword = isBlank(request.getNewPassword()) ? "123456" : request.getNewPassword().trim();
         user.setPasswordHash(PasswordUtils.sha256(newPassword));
         appUserMapper.updateById(user);
+    }
+
+
+    @Override
+    @Transactional
+    public void deleteUser(String authorizationHeader, Long id) {
+        AppUser operator = requireAdmin(authorizationHeader);
+        AppUser user = getUserById(id);
+        if (operator.getId() != null && operator.getId().equals(user.getId())) {
+            throw new IllegalArgumentException("不能删除当前登录账号");
+        }
+        user.setDeleted(1);
+        user.setStatus("DISABLED");
+        appUserMapper.updateById(user);
+        userSessionMapper.softDeleteByUserId(user.getId());
     }
 
     private LoginResponse buildLoginResponse(AppUser user, String loginType) {
@@ -378,7 +393,7 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("用户不存在");
         }
         if (!STATUS_ENABLED.equals(user.getStatus())) {
-            throw new IllegalArgumentException("账号已被禁用");
+            throw new IllegalArgumentException("璐﹀彿宸茶绂佺敤");
         }
         return user;
     }
@@ -433,15 +448,15 @@ public class UserServiceImpl implements UserService {
         if (!isBlank(nickname)) {
             return nickname.trim();
         }
-        return "微信用户" + openid.substring(Math.max(0, openid.length() - 6));
+        return "寰俊鐢ㄦ埛" + openid.substring(Math.max(0, openid.length() - 6));
     }
 
     private String storeAvatar(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("请选择要上传的头像");
+            throw new IllegalArgumentException("璇烽€夋嫨瑕佷笂浼犵殑澶村儚");
         }
         if (file.getSize() > MAX_AVATAR_SIZE) {
-            throw new IllegalArgumentException("头像不能超过 5MB");
+            throw new IllegalArgumentException("澶村儚涓嶈兘瓒呰繃 5MB");
         }
 
         String extension = extractImageExtension(file.getOriginalFilename(), file.getContentType());
@@ -452,7 +467,7 @@ public class UserServiceImpl implements UserService {
             Files.createDirectories(uploadDir);
             file.transferTo(target);
         } catch (IOException e) {
-            throw new IllegalStateException("头像存储失败", e);
+            throw new IllegalStateException("澶村儚瀛樺偍澶辫触", e);
         }
         return "/uploads/avatars/" + fileName;
     }
@@ -460,7 +475,7 @@ public class UserServiceImpl implements UserService {
     private String normalizeUserType(String userType, String defaultValue) {
         String resolved = isBlank(userType) ? defaultValue : userType.trim().toUpperCase(Locale.ROOT);
         if (!USER_TYPE_ADMIN.equals(resolved) && !USER_TYPE_WECHAT.equals(resolved)) {
-            throw new IllegalArgumentException("身份仅支持 ADMIN 或 WECHAT");
+            throw new IllegalArgumentException("韬唤浠呮敮鎸?ADMIN 鎴?WECHAT");
         }
         return resolved;
     }
@@ -478,14 +493,14 @@ public class UserServiceImpl implements UserService {
         }
 
         if (contentType == null) {
-            throw new IllegalArgumentException("仅支持 png、jpg、webp 图片");
+            throw new IllegalArgumentException("浠呮敮鎸?png銆乯pg銆亀ebp 鍥剧墖");
         }
 
         return switch (contentType.toLowerCase(Locale.ROOT)) {
             case "image/png" -> "png";
             case "image/jpeg", "image/jpg" -> "jpg";
             case "image/webp" -> "webp";
-            default -> throw new IllegalArgumentException("仅支持 png、jpg、webp 图片");
+            default -> throw new IllegalArgumentException("浠呮敮鎸?png銆乯pg銆亀ebp 鍥剧墖");
         };
     }
 
@@ -497,3 +512,5 @@ public class UserServiceImpl implements UserService {
         return isBlank(value) ? null : value.trim();
     }
 }
+
+
