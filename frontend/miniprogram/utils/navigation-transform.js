@@ -18,8 +18,22 @@ const toRadians = (degrees) => degrees * (Math.PI / 180);
 export const normalizeNode = (raw = {}) => {
   const source = Array.isArray(raw) ? (raw[0] || {}) : raw;
   const floor = toNumber(source.floor);
-  const planarX = toNumber(source.planarX ?? source.xCoordinate ?? source.x ?? source.coordinates?.x);
-  const planarY = toNumber(source.planarY ?? source.yCoordinate ?? source.y ?? source.coordinates?.y);
+  const planarX = toNumber(
+    source.planarX
+    ?? source.xCoordinate
+    ?? source.xcoordinate
+    ?? source.x_coordinate
+    ?? source.x
+    ?? source.coordinates?.x
+  );
+  const planarY = toNumber(
+    source.planarY
+    ?? source.yCoordinate
+    ?? source.ycoordinate
+    ?? source.y_coordinate
+    ?? source.y
+    ?? source.coordinates?.y
+  );
   const worldX = toNumber(source.worldX ?? source.x ?? planarX);
   const worldY = toNumber(source.worldY ?? (source.z !== undefined ? source.y : floor * FLOOR_HEIGHT), floor * FLOOR_HEIGHT);
   const worldZ = toNumber(source.worldZ ?? source.z ?? planarY);

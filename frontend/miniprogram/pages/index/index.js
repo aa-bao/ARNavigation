@@ -9,7 +9,7 @@ import { getStorage, setStorage } from '../../utils/storage.js';
 import { calculatePlanarDistance } from '../../utils/location.js';
 import { normalizeNode } from '../../utils/navigation-transform.js';
 import { parseNavigationScanResult, scanNavigationTarget } from '../../services/navigation-session.js';
-import { emitVibrationFeedback, emitVoiceBroadcast } from '../../utils/navigation-feedback.js';
+import { emitVibrationFeedback } from '../../utils/navigation-feedback.js';
 import { loadUserSettingsSync } from '../../utils/user-settings.js';
 
 const app = getApp();
@@ -318,7 +318,6 @@ Page({
       app.setCurrentLocation(currentLocation);
       const settings = getUserSettings();
       emitVibrationFeedback(settings, 'short');
-      emitVoiceBroadcast(settings, `已定位 ${currentLocation.name}`);
 
       this.setData({
         currentLocation,

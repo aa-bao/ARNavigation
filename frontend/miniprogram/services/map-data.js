@@ -1,4 +1,4 @@
-import { getNavigationEdges, getNavigationNodes } from './navigation-api.js';
+import { getNavigationEdges, getNavigationNodes, getNavigationPath } from './navigation-api.js';
 
 export const MAP_COORDINATE_RANGE = Object.freeze({
   minX: -8,
@@ -59,3 +59,5 @@ export const getMarkerStyle = (kind) => MARKER_STYLES[kind] || MARKER_STYLES.CUR
 export const fetchMapNodes = () => getNavigationNodes();
 
 export const fetchMapEdges = () => getNavigationEdges();
+
+export const fetchNavigationPath = (fromId, toId) => getNavigationPath(fromId, toId);

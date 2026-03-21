@@ -1,5 +1,4 @@
 export const DEFAULT_USER_SETTINGS = Object.freeze({
-  voiceEnabled: true,
   vibrationEnabled: true,
   highAccuracyLocation: true,
   autoStartAR: false,

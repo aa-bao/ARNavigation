@@ -37,7 +37,7 @@
         <text class="ring-label south">S</text>
         <text class="ring-label west">W</text>
       </view>
-      <view class="compass-arrow" style="transform: rotate({{relativeAngle}}deg)">→</view>
+      <view class="compass-arrow" style="transform: rotate({{arrowRotation}}deg)">→</view>
     </view>
     <text class="direction-text">{{directionText}}</text>
   </view>
@@ -60,9 +60,6 @@
     </button>
     <button class="secondary-btn" bindtap="enterARMode">
       切换到 AR 模式
-    </button>
-    <button class="secondary-btn" bindtap="openMapView">
-      查看地图
     </button>
     <button class="ghost-btn" bindtap="endNavigation">
       结束导航

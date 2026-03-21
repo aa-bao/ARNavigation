@@ -15,6 +15,11 @@ export const getNavigationNodes = () => get('/navigation/nodes');
 
 export const getNavigationEdges = () => get('/navigation/edges');
 
+export const getNavigationPath = (fromId, toId) => get('/navigation/path', {
+  fromId,
+  toId
+});
+
 export const getDestinations = (params = {}) => get('/navigation/destinations', params);
 
 export const createNavigationHistory = (payload) => post('/navigation/recent', {

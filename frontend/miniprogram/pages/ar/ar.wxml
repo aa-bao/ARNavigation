@@ -3,7 +3,7 @@
 
   <view class="arrow-overlay" wx:if="{{!arrivedAtTarget}}">
     <view class="arrow-core" style="transform: translate(-50%, -50%) rotate({{arrowRotation}}deg);">
-      <text class="arrow-icon">↑</text>
+      <text class="arrow-icon">→</text>
     </view>
     <view class="arrow-caption">
       <text class="arrow-direction">{{directionText}}</text>

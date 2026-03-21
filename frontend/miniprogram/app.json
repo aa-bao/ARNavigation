@@ -28,8 +28,8 @@
       {
         "pagePath": "pages/map/map",
         "text": "地图",
-        "iconPath": "images/map.png",
-        "selectedIconPath": "images/map-active.png"
+        "iconPath": "images/mapTab.png",
+        "selectedIconPath": "images/mapTab-active.png"
       },
       {
         "pagePath": "pages/settings/settings",

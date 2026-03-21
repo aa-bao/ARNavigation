@@ -1,12 +1,13 @@
 import {
   fetchMapEdges,
   fetchMapNodes,
+  fetchNavigationPath,
   getMapOptionByKey,
   MAP_FLOOR_OPTIONS,
   MAP_VIEWPORT
 } from '../../services/map-data.js';
 import { getNavigationSession } from '../../services/navigation-session.js';
-import { buildMapScene } from '../../utils/map-projector.js';
+import { buildMapScene, resolveNodeCoordinates } from '../../utils/map-projector.js';
 
 const app = getApp();
 
@@ -57,6 +58,13 @@ const getGuidanceText = ({ floor, mode, currentNode, destination, segmentEndNode
 };
 
 const getCanvasHeight = (width) => Math.round((width * MAP_VIEWPORT.height) / MAP_VIEWPORT.width);
+const hasValidCoordinates = (node) => {
+  if (!node) {
+    return false;
+  }
+  const coordinates = resolveNodeCoordinates(node);
+  return Number.isFinite(coordinates.x) && Number.isFinite(coordinates.y);
+};
 
 Page({
   data: {
@@ -92,7 +100,11 @@ Page({
     const context = app.consumeMapViewContext?.() || null;
     this.mapNodes = [];
     this.mapEdges = [];
+    this.nodeById = new Map();
+    this.nodeByCode = new Map();
+    this.routePoints = [];
     this.renderTimer = null;
+    this.routeSyncToken = 0;
     this.setData({
       mapMode: query.mode || context?.mode || 'browse'
     });
@@ -117,7 +129,7 @@ Page({
     try {
       await this.ensureCanvasSize();
       await this.ensureMapData();
-      this.syncView();
+      await this.syncView();
     } catch (error) {
       this.setData({
         loading: false,
@@ -135,6 +147,19 @@ Page({
 
     const nodes = await fetchMapNodes();
     this.mapNodes = Array.isArray(nodes) ? nodes : [];
+    this.nodeById = new Map();
+    this.nodeByCode = new Map();
+    this.mapNodes.forEach((node) => {
+      const id = Number(node?.nodeId ?? node?.id);
+      if (Number.isFinite(id) && id > 0 && !this.nodeById.has(id)) {
+        this.nodeById.set(id, node);
+      }
+
+      const code = String(node?.nodeCode ?? '').trim();
+      if (code && !this.nodeByCode.has(code)) {
+        this.nodeByCode.set(code, node);
+      }
+    });
     if (!this.mapNodes.length) {
       throw new Error('地图节点数据为空');
     }
@@ -196,11 +221,11 @@ Page({
     });
   },
 
-  syncView() {
+  async syncView() {
     const session = getNavigationSession(app);
-    const currentNode = session?.currentScannedNode || app.globalData.currentLocation || null;
-    const segmentEndNode = session?.segmentEndNode || null;
-    const destination = session?.destination || app.globalData.destination || null;
+    const currentNode = this.resolveKnownNode(session?.currentScannedNode || app.globalData.currentLocation || null);
+    const segmentEndNode = this.resolveKnownNode(session?.segmentEndNode || null);
+    const destination = this.resolveKnownNode(session?.destination || app.globalData.destination || null);
     const preferredFloor = getRecommendedFloor({
       currentNode,
       destination,
@@ -219,7 +244,82 @@ Page({
       segmentEndNode,
       destination
     });
+    await this.syncRoutePoints({
+      session,
+      currentNode,
+      destination
+    });
     this.scheduleRender();
+  },
+
+  async syncRoutePoints({ session, currentNode, destination }) {
+    const sessionPoints = Array.isArray(session?.segmentPoints) ? session.segmentPoints : [];
+    if (sessionPoints.length >= 2) {
+      this.routePoints = sessionPoints;
+      return;
+    }
+
+    const fromId = Number(currentNode?.nodeId ?? currentNode?.id);
+    const toId = Number(destination?.nodeId ?? destination?.id);
+    if (!Number.isFinite(fromId) || !Number.isFinite(toId) || fromId <= 0 || toId <= 0 || fromId === toId) {
+      this.routePoints = [];
+      return;
+    }
+
+    const token = Date.now();
+    this.routeSyncToken = token;
+    try {
+      const response = await fetchNavigationPath(fromId, toId);
+      if (this.routeSyncToken !== token) {
+        return;
+      }
+      this.routePoints = Array.isArray(response?.pathNodes) ? response.pathNodes : [];
+    } catch (error) {
+      if (this.routeSyncToken === token) {
+        this.routePoints = [];
+      }
+    }
+  },
+
+  resolveKnownNode(node) {
+    if (!node) {
+      return null;
+    }
+
+    const id = Number(node.nodeId ?? node.id);
+    const code = String(node.nodeCode ?? '').trim();
+    const matched = (Number.isFinite(id) && id > 0 && this.nodeById.get(id))
+      || (code && this.nodeByCode.get(code))
+      || null;
+
+    if (!matched) {
+      return node;
+    }
+
+    const merged = {
+      ...matched,
+      ...node
+    };
+
+    if (!Number.isFinite(Number(merged.floor ?? merged.floorNumber))) {
+      merged.floor = matched.floor ?? matched.floorNumber ?? merged.floor;
+      merged.floorNumber = matched.floor ?? matched.floorNumber ?? merged.floorNumber;
+    }
+
+    if (!hasValidCoordinates(node)) {
+      const fixedX = matched.planarX ?? matched.xCoordinate ?? matched.x;
+      const fixedY = matched.planarY ?? matched.yCoordinate ?? matched.y;
+      merged.planarX = fixedX;
+      merged.planarY = fixedY;
+      merged.xCoordinate = fixedX;
+      merged.yCoordinate = fixedY;
+      merged.coordinates = {
+        x: fixedX,
+        y: fixedY
+      };
+    }
+
+    return merged;
   },
 
   resolveActiveOption(preferredFloor) {
@@ -274,7 +374,7 @@ Page({
       floor: this.data.activeFloor,
       nodes: this.mapNodes,
       edges: this.mapEdges,
-      routePoints: this.navigationSession?.segmentPoints || [],
+      routePoints: this.routePoints || [],
       markerNodes: {
         CURRENT: this.currentNode,
         DESTINATION: this.destination,
