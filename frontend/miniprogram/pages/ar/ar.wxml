@@ -1,14 +1,20 @@
-<view class="ar-page">
+﻿<view class="ar-page">
   <camera class="camera-layer" device-position="back" flash="off"></camera>
+  <canvas id="arWebglCanvas" type="webgl" class="ar-webgl-canvas" style="opacity: 0;"></canvas>
 
-  <view class="arrow-overlay" wx:if="{{!arrivedAtTarget}}">
-    <view class="arrow-core" style="transform: translate(-50%, -50%) rotate({{arrowRotation}}deg);">
-      <text class="arrow-icon">→</text>
+  <view class="lane-overlay" wx:if="{{!arrivedAtTarget && laneVisible && !rendererReady}}">
+    <view class="lane-track" style="transform: translateX({{laneShiftRpx}}rpx) rotate({{laneRotateDeg}}deg);">
+      <block wx:for="{{laneFrames}}" wx:key="*this">
+        <image class="lane-arrow lane-arrow-{{index}}" src="/images/ar-lane-arrow.png" mode="aspectFit"></image>
+      </block>
     </view>
     <view class="arrow-caption">
       <text class="arrow-direction">{{directionText}}</text>
       <text class="arrow-angle">相对角度 {{relativeAngle}}°</text>
     </view>
+  </view>
+  <view class="turn-around-tip" wx:if="{{!arrivedAtTarget && needTurnAround}}">
+    <text>目标在身后，请转身</text>
   </view>
 
   <view class="top-panel">
@@ -52,3 +58,4 @@
     </view>
   </view>
 </view>
+

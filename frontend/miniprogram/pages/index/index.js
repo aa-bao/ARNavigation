@@ -175,6 +175,18 @@ Page({
   },
 
   async loadCommonDestinations() {
+    const token = wx.getStorageSync('token');
+    if (!token) {
+      const fallback = this.mapRecentDestinations(this.data.navigationHistory);
+      this.setData({
+        commonDestinations: fallback,
+        destinationCatalog: fallback
+      });
+      this.buildDestinationFilters(fallback);
+      this.applyDestinationFilters();
+      return;
+    }
+
     try {
       const nodes = await getDestinations({ limit: 200 });
       const commonDestinations = (nodes || [])

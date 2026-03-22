@@ -1,6 +1,5 @@
-const { createLocalWorldPoints, rotateLocalWorldPoints, sampleAheadPoint } = require('./curve.js');
-const { updateArrowMesh } = require('./arrow.js');
-const { getLocalPathHeading } = require('../../utils/navigation-transform.js');
+﻿const { createGuidanceEngine } = require('./guidance-engine.js');
+const vkCameraBg = require('./vk-camera-bg.js');
 
 let threeModule = null;
 
@@ -30,120 +29,245 @@ const loadThree = (canvas) => {
   return null;
 };
 
-const createFallbackRenderer = (reason = 'AR 渲染暂不可用') => ({
+const normalizePoints = (points = []) => {
+  if (!Array.isArray(points)) {
+    return [];
+  }
+
+  return points
+    .map((point) => ({
+      x: Number(point?.x ?? point?.worldX ?? point?.planarX ?? 0),
+      y: Number(point?.y ?? point?.worldY ?? point?.planarY ?? 0),
+      z: Number(point?.z ?? point?.worldZ ?? 0)
+    }))
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z));
+};
+
+const createFallbackRenderer = (engine, reason = 'AR 渲染暂不可用') => ({
   supported: false,
   reason,
-  updatePath() {},
-  updateMotion() {},
-  dispose() {}
+  updateSession(sessionLike) {
+    engine.updateSession(sessionLike);
+  },
+  updateSensors(sensorLike) {
+    engine.updateSensors(sensorLike);
+  },
+  tick() {
+    return engine.tick();
+  },
+  dispose() {
+    engine.reset();
+  }
 });
 
 const createSceneRenderer = ({ canvas, points = [] }) => {
+  const engine = createGuidanceEngine();
+  engine.updateSession({ points: normalizePoints(points) });
+
   const THREE = loadThree(canvas);
   if (!THREE || !canvas || typeof canvas.getContext !== 'function') {
-    return createFallbackRenderer(!canvas ? 'AR 画布未准备完成' : 'AR 引擎初始化失败');
+    return createFallbackRenderer(engine, !canvas ? 'AR 画布未准备完成' : 'AR 引擎初始化失败');
+  }
+
+  if (!wx?.createVKSession) {
+    return createFallbackRenderer(engine, '当前微信环境不支持 VisionKit 平面追踪');
   }
 
   const gl = canvas.getContext('webgl');
   if (!gl) {
-    return createFallbackRenderer('当前设备不支持 WebGL 渲染');
+    return createFallbackRenderer(engine, '当前设备不支持 WebGL 渲染');
   }
 
   const renderer = new THREE.WebGLRenderer({ canvas, context: gl, alpha: true, antialias: true });
   renderer.setClearColor(0x000000, 0);
+  vkCameraBg.initGL(renderer);
+
   const scene = new THREE.Scene();
-  scene.background = null;
-  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 200);
-  camera.position.set(0, 1.6, 0);
-  renderer.setSize(canvas.width, canvas.height);
-  camera.aspect = canvas.width / Math.max(canvas.height, 1);
-  camera.updateProjectionMatrix();
+  const camera = new THREE.Camera();
 
-  const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
-  scene.add(ambientLight);
+  const ambient = new THREE.AmbientLight(0xffffff, 1.1);
+  const directional = new THREE.DirectionalLight(0xffffff, 1.8);
+  directional.position.set(1, 3, 2);
+  scene.add(ambient);
+  scene.add(directional);
 
-  const directionalLight = new THREE.DirectionalLight(0x9bd3ff, 1.3);
-  directionalLight.position.set(2, 3, 1);
-  scene.add(directionalLight);
+  const anchorRoot = new THREE.Object3D();
+  anchorRoot.matrixAutoUpdate = false;
+  scene.add(anchorRoot);
 
-  const arrowGeometry = new THREE.ConeGeometry(0.18, 0.55, 10);
-  arrowGeometry.rotateX(-Math.PI / 2);
-  const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0x22c55e });
-  const arrowMesh = new THREE.Mesh(arrowGeometry, arrowMaterial);
-  arrowMesh.visible = false;
-  scene.add(arrowMesh);
+  const arrowMeshes = [];
+  for (let index = 0; index < 6; index += 1) {
+    const geo = new THREE.ConeGeometry(0.16 + index * 0.03, 0.14 + index * 0.02, 10);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x2ea7ff, emissive: 0x134a99, emissiveIntensity: 0.35 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(0, 0.02, -(0.8 + index * 0.55));
+    mesh.scale.set(1.35, 0.45, 1.05);
+    anchorRoot.add(mesh);
+    arrowMeshes.push(mesh);
+  }
 
-  let curveLine = null;
-  let rawPoints = [];
-  let localPoints = [];
-  let baseYaw = 0;
-  let lastMotion = null;
-
-  const renderPath = () => {
-    if (curveLine) {
-      scene.remove(curveLine);
-      curveLine.geometry.dispose();
-      curveLine.material.dispose();
-      curveLine = null;
+  const session = wx.createVKSession({
+    track: {
+      plane: {
+        mode: 1
+      }
     }
+  });
 
-    const motionYaw = lastMotion?.alpha || 0;
-    const rotatedPoints = rotateLocalWorldPoints(localPoints, baseYaw - motionYaw);
+  let disposed = false;
+  let started = false;
+  let anchorLocked = false;
+  let lastTick = { status: 'READY', confidence: 0, hintText: '等待平面检测', headingErrorDeg: null };
 
-    if (!rotatedPoints.length) {
-      arrowMesh.visible = false;
-      renderer.render(scene, camera);
+  const syncViewport = () => {
+    const width = Math.max(Number(canvas.width) || 0, 1);
+    const height = Math.max(Number(canvas.height) || 0, 1);
+    if (renderer.domElement && (renderer.domElement.width !== width || renderer.domElement.height !== height)) {
+      renderer.setSize(width, height, false);
+    }
+  };
+
+  const applyPoseToArrows = (payload) => {
+    const pose = payload?.pose || {};
+    const yaw = Number.isFinite(pose.yaw) ? pose.yaw : 0;
+    const confidence = Number.isFinite(payload?.confidence) ? Math.max(0, Math.min(1, payload.confidence)) : 0;
+
+    anchorRoot.rotation.set(0, yaw, 0);
+
+    arrowMeshes.forEach((mesh, idx) => {
+      mesh.visible = anchorLocked;
+      const alpha = 0.45 + confidence * 0.55;
+      mesh.material.opacity = alpha;
+      mesh.material.transparent = alpha < 0.999;
+      mesh.material.color.setHex(payload?.status === 'RECALIBRATE_REQUIRED' ? 0xef4444 : 0x2ea7ff);
+      mesh.material.emissive.setHex(payload?.status === 'RECALIBRATE_REQUIRED' ? 0x7f1d1d : 0x134a99);
+      const s = 0.9 + idx * 0.07;
+      mesh.scale.set(1.35 * s, 0.45 * s, 1.05 * s);
+    });
+  };
+
+  const tryLockAnchor = () => {
+    if (anchorLocked || !started) {
       return;
     }
-    arrowMesh.visible = true;
 
-    const vectorPoints = rotatedPoints.map((point) => new THREE.Vector3(point.x, point.y, point.z));
-    const curve = new THREE.CatmullRomCurve3(vectorPoints);
-    const sampled = curve.getPoints(Math.max(8, vectorPoints.length * 12));
-    const lineGeometry = new THREE.BufferGeometry().setFromPoints(sampled);
-    const lineMaterial = new THREE.LineBasicMaterial({ color: 0x38bdf8 });
-    curveLine = new THREE.Line(lineGeometry, lineMaterial);
-    scene.add(curveLine);
+    const hit = session.hitTest(0.5, 0.8, true);
+    if (hit && hit.length && hit[0].transform) {
+      anchorRoot.matrix.fromArray(hit[0].transform);
+      anchorLocked = true;
+    }
+  };
 
-    updateArrowMesh(THREE, arrowMesh, sampleAheadPoint(rotatedPoints, 1.2));
+  const renderFrame = () => {
+    if (disposed || !started) {
+      return lastTick;
+    }
+
+    syncViewport();
+
+    const frame = session.getVKFrame(canvas.width, canvas.height);
+    if (frame?.camera) {
+      tryLockAnchor();
+      vkCameraBg.renderGL(frame);
+
+      camera.matrixAutoUpdate = false;
+      camera.matrixWorldInverse.fromArray(frame.camera.viewMatrix);
+      camera.matrixWorld.getInverse(camera.matrixWorldInverse);
+      const projectionMatrix = frame.camera.getProjectionMatrix(0.01, 1000);
+      camera.projectionMatrix.fromArray(projectionMatrix);
+    }
+
+    const payload = engine.tick();
+    applyPoseToArrows(payload);
+    renderer.autoClearColor = false;
     renderer.render(scene, camera);
+    lastTick = payload;
+
+    session.requestAnimationFrame(renderFrame);
+    return payload;
   };
 
-  const rebuildPath = (nextPoints) => {
-    rawPoints = Array.isArray(nextPoints) ? nextPoints.slice() : [];
-    localPoints = createLocalWorldPoints(rawPoints);
-    baseYaw = getLocalPathHeading({
-      segmentPoints: rawPoints.map((point) => ({
-        ...point,
-        worldX: point.x,
-        worldY: point.y,
-        worldZ: point.z
-      }))
-    });
+  session.start((err) => {
+    if (err || disposed) {
+      started = false;
+      lastTick = {
+        status: 'READY',
+        confidence: 0,
+        hintText: 'VisionKit 初始化失败',
+        headingErrorDeg: null
+      };
+      return;
+    }
 
-    renderPath();
-  };
-
-  rebuildPath(points);
+    started = true;
+    session.on('resize', syncViewport);
+    session.requestAnimationFrame(renderFrame);
+  });
 
   return {
     supported: true,
-    updatePath(nextPoints) {
-      rebuildPath(nextPoints);
+    updateSession(sessionLike) {
+      if (disposed) {
+        return;
+      }
+      const sessionPoints = normalizePoints(
+        sessionLike?.points
+        ?? sessionLike?.segmentPoints
+        ?? sessionLike?.worldPoints
+        ?? points
+      );
+      engine.updateSession({
+        points: sessionPoints,
+        anchorHeading: sessionLike?.anchorHeading
+      });
+      anchorLocked = false;
     },
-    updateMotion(motion) {
-      lastMotion = motion || null;
-      camera.rotation.set(motion?.beta || 0, 0, motion?.gamma || 0);
-      renderPath();
+    updateSensors(sensorLike) {
+      if (disposed) {
+        return;
+      }
+      engine.updateSensors(sensorLike);
+    },
+    tick() {
+      if (!started) {
+        return {
+          status: 'READY',
+          confidence: 0,
+          hintText: '正在识别地面平面...',
+          headingErrorDeg: null,
+          anchorLocked: false
+        };
+      }
+      if (!anchorLocked) {
+        return {
+          status: 'READY',
+          confidence: 0,
+          hintText: '请将手机对准地面完成锚定',
+          headingErrorDeg: null,
+          anchorLocked: false
+        };
+      }
+      return {
+        ...lastTick,
+        hintText: lastTick?.hintText || 'AR 地面锚定已完成',
+        anchorLocked: true
+      };
     },
     dispose() {
-      if (curveLine) {
-        scene.remove(curveLine);
-        curveLine.geometry.dispose();
-        curveLine.material.dispose();
+      if (disposed) {
+        return;
       }
-      arrowGeometry.dispose();
-      arrowMaterial.dispose();
+      disposed = true;
+      try {
+        session.stop();
+      } catch (e) {}
+      engine.reset();
+      arrowMeshes.forEach((mesh) => {
+        mesh.geometry.dispose();
+        mesh.material.dispose();
+      });
+      vkCameraBg.dispose();
       renderer.dispose();
     }
   };

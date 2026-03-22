@@ -1,4 +1,4 @@
-const BASE_URL = 'http://192.168.101.11:8080/api';
+﻿const BASE_URL = 'http://192.168.101.11:8080/api';
 const TIMEOUT = 10000;
 const ASSET_BASE_URL = BASE_URL.replace(/\/api\/?$/, '');
 
@@ -23,10 +23,10 @@ const responseInterceptor = (response) => {
     throw new Error(data.message || '请求失败');
   }
 
-  if (statusCode === 401) {
+  if (statusCode === 401 || statusCode === 403) {
     wx.removeStorageSync('token');
     wx.removeStorageSync('userInfo');
-    throw new Error('登录已失效，请重新登录');
+    throw new Error(statusCode === 401 ? '登录已失效，请重新登录' : '无权限访问，请重新登录');
   }
 
   throw new Error(data?.message || `HTTP ${statusCode}: 请求失败`);

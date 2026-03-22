@@ -39,10 +39,5 @@
       }
     ]
   },
-  "permission": {
-    "scope.camera": {
-      "desc": "用于AR导航与扫码定位"
-    }
-  },
   "sitemapLocation": "sitemap.json"
 }

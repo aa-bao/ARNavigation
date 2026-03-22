@@ -5,6 +5,14 @@
       {
         "value": ".eslintrc.js",
         "type": "file"
+      },
+      {
+        "value": "assets/maps/hospital_3d_layout.png",
+        "type": "file"
+      },
+      {
+        "value": "assets/3d/arrow.glb",
+        "type": "file"
       }
     ],
     "include": []

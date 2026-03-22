@@ -1,4 +1,4 @@
-import { getNodeByCode, getNavigationSegment } from '../../services/navigation-api.js';
+﻿import { getNodeByCode, getNavigationSegment } from '../../services/navigation-api.js';
 import {
   getNavigationSession,
   setNavigationSession,
@@ -7,9 +7,18 @@ import {
   scanNavigationTarget
 } from '../../services/navigation-session.js';
 import { startCompass, calculateRelativeDirection } from '../../utils/compass.js';
-import { createNavigationSession, getSegmentHeading, normalizeNode } from '../../utils/navigation-transform.js';
+import {
+  createNavigationSession,
+  getSegmentHeading,
+  getWorldPoints,
+  normalizeNode
+} from '../../utils/navigation-transform.js';
+
+const { createSceneRenderer } = require('../../renderers/ar-scene/index.js');
+const { startMotionTracking: startRendererMotionTracking } = require('../../renderers/ar-scene/motion.js');
 
 const app = getApp();
+const FORCE_IMAGE_AR = true;
 
 const buildCurrentNodeFromScan = (scanTarget, apiNode = null) => {
   if (apiNode) {
@@ -38,9 +47,9 @@ Page({
     nextNode: null,
     isFinalSegment: false,
     arrivedAtTarget: false,
-    rendererSupported: true,
-    rendererReady: true,
-    rendererStatusText: '相机叠加箭头已就绪',
+    rendererSupported: false,
+    rendererReady: false,
+    rendererStatusText: '图像AR引导模式（稳定版）',
     motionText: '等待方向同步',
     promptText: 'AR 仅使用最近一次扫码点作为局部锚点。',
     directionText: '请沿箭头方向前进',
@@ -48,24 +57,63 @@ Page({
     targetDirection: 0,
     relativeAngle: 0,
     arrowRotation: 0,
-    compassStopFunction: null
+    laneShiftRpx: 0,
+    laneRotateDeg: 0,
+    laneVisible: true,
+    needTurnAround: false,
+    laneFrames: [0, 1, 2, 3, 4, 5],
+    compassStopFunction: null,
+    motionStopFunction: null
   },
 
   onLoad() {
+    this.renderer = null;
+    this.motionState = null;
+    this.compassHeading = null;
+    this.session = null;
+    this.rendererSessionPoints = [];
+    this.isPageReady = false;
+    this.isPageVisible = false;
+    this.rendererInitToken = 0;
+    this.motionTrackingToken = 0;
+    this.rendererInitPromise = null;
+    this.motionTrackingPromise = null;
     this.initializePage();
   },
 
+  onReady() {
+    this.isPageReady = true;
+    if (!FORCE_IMAGE_AR) {
+      this.initializeRenderer();
+    }
+  },
+
   onShow() {
+    this.isPageVisible = true;
     this.applySession(getNavigationSession(app));
     this.startCompassTracking();
+    if (!FORCE_IMAGE_AR) {
+      this.startMotionTracking();
+      this.initializeRenderer();
+    }
   },
 
   onHide() {
     this.stopCompassTracking();
+    if (!FORCE_IMAGE_AR) {
+      this.stopMotionTracking();
+      this.disposeRenderer();
+    }
+    this.isPageVisible = false;
   },
 
   onUnload() {
     this.stopCompassTracking();
+    if (!FORCE_IMAGE_AR) {
+      this.stopMotionTracking();
+      this.disposeRenderer();
+    }
+    this.isPageVisible = false;
   },
 
   initializePage() {
@@ -106,22 +154,304 @@ Page({
       promptText: arrivedAtTarget
         ? '您当前已在最终目标点，可结束导航。'
         : `请沿相机画面中的箭头前往 ${session.segmentEndNode?.nodeName || '下一二维码点'}，到达后重新扫码。`,
-      rendererSupported: true,
-      rendererReady: true,
-      rendererStatusText: '相机叠加箭头已就绪'
+      rendererSupported: this.data.rendererSupported,
+      rendererReady: this.data.rendererReady,
+      rendererStatusText: this.data.rendererStatusText
     });
+
+    this.syncRendererWithSession();
 
     if (arrivedAtTarget) {
       app.updateNavState('ARRIVED');
       this.setData({
         directionText: '已到达目的地',
         relativeAngle: 0,
-        arrowRotation: 0
+        arrowRotation: 0,
+        laneVisible: false
       });
       return;
     }
 
+    this.setData({ laneVisible: true });
     app.updateNavState('NAVIGATING');
+  },
+
+  updateLaneByRelative(relativeAngle = 0, isInFront = true) {
+    if (!isInFront) {
+      if (this.data.laneVisible || !this.data.needTurnAround) {
+        this.setData({
+          laneVisible: false,
+          needTurnAround: true
+        });
+      }
+      return;
+    }
+
+    const angle = Number(relativeAngle) || 0;
+    const clampedAngle = Math.max(-90, Math.min(90, angle));
+    const laneShiftRpx = Math.max(-140, Math.min(140, (clampedAngle / 90) * 120));
+    const laneRotateDeg = Math.max(-32, Math.min(32, clampedAngle * 0.35));
+    if (
+      laneShiftRpx !== this.data.laneShiftRpx
+      || laneRotateDeg !== this.data.laneRotateDeg
+      || !this.data.laneVisible
+      || this.data.needTurnAround
+    ) {
+      this.setData({
+        laneShiftRpx,
+        laneRotateDeg,
+        laneVisible: true,
+        needTurnAround: false
+      });
+    }
+  },
+
+  getSessionPoints() {
+    return getWorldPoints(this.session || getNavigationSession(app));
+  },
+
+  syncRendererWithSession() {
+    if (FORCE_IMAGE_AR) {
+      return;
+    }
+    if (!this.renderer) {
+      return;
+    }
+
+    this.rendererSessionPoints = this.getSessionPoints();
+    if (this.renderer.supported && typeof this.renderer.updateSession === 'function') {
+      this.renderer.updateSession({
+        points: this.rendererSessionPoints,
+        anchorHeading: this.session?.anchorHeading ?? null
+      });
+    }
+
+    this.pushRendererSensors();
+  },
+
+  pushRendererSensors() {
+    if (FORCE_IMAGE_AR) {
+      return;
+    }
+    if (!this.renderer) {
+      return;
+    }
+
+    if (this.renderer.supported && typeof this.renderer.updateSensors === 'function') {
+      this.renderer.updateSensors({
+        compassHeading: this.compassHeading,
+        motion: this.motionState
+      });
+    }
+
+    this.applyRendererTickResult(this.tickRenderer());
+  },
+
+  applyRendererTickResult(tickResult) {
+    if (!tickResult) {
+      return;
+    }
+
+    const nextData = {
+      rendererSupported: Boolean(tickResult.supported),
+      rendererReady: Boolean(tickResult.ready),
+      rendererStatusText: tickResult.statusText || this.data.rendererStatusText
+    };
+
+    if (
+      nextData.rendererSupported !== this.data.rendererSupported
+      || nextData.rendererReady !== this.data.rendererReady
+      || nextData.rendererStatusText !== this.data.rendererStatusText
+    ) {
+      this.setData(nextData);
+    }
+  },
+
+  tickRenderer() {
+    if (FORCE_IMAGE_AR) {
+      return {
+        supported: false,
+        ready: false,
+        statusText: '图像AR引导模式（稳定版）'
+      };
+    }
+
+    const renderer = this.renderer;
+
+    if (!renderer) {
+      return {
+        supported: false,
+        ready: false,
+        statusText: 'AR 渲染器未初始化'
+      };
+    }
+
+    if (!renderer.supported) {
+      return {
+        supported: false,
+        ready: false,
+        statusText: renderer.reason || '图像 AR 引导已启用（3D引擎不可用）'
+      };
+    }
+
+    const tickResult = typeof renderer.tick === 'function' ? renderer.tick() : null;
+    const anchorLocked = Boolean(tickResult?.anchorLocked);
+
+    return {
+      supported: true,
+      ready: anchorLocked,
+      statusText: tickResult?.hintText || (this.session?.isFinalSegment ? '已到达最终目标' : '正在识别地面平面...')
+    };
+  },
+
+  initializeRenderer() {
+    if (FORCE_IMAGE_AR) {
+      this.applyRendererTickResult({
+        supported: false,
+        ready: false,
+        statusText: '图像AR引导模式（稳定版）'
+      });
+      return null;
+    }
+
+    if (!this.isPageReady || !this.isPageVisible || this.rendererInitPromise) {
+      return this.rendererInitPromise;
+    }
+
+    const initToken = this.rendererInitToken + 1;
+    this.rendererInitToken = initToken;
+
+    this.rendererInitPromise = new Promise((resolve) => {
+      wx.nextTick(() => {
+        if (!this.isPageReady || !this.isPageVisible || initToken !== this.rendererInitToken) {
+          this.rendererInitPromise = null;
+          resolve(null);
+          return;
+        }
+
+        const query = wx.createSelectorQuery().in(this);
+        query.select('#arWebglCanvas').fields({ node: true, size: true });
+        query.exec((result) => {
+          if (!this.isPageReady || !this.isPageVisible || initToken !== this.rendererInitToken) {
+            this.rendererInitPromise = null;
+            resolve(null);
+            return;
+          }
+
+          const canvas = result?.[0]?.node || null;
+          if (!canvas) {
+            this.renderer = null;
+            this.applyRendererTickResult({
+              supported: false,
+              ready: false,
+              statusText: 'AR 画布未准备完成'
+            });
+            this.rendererInitPromise = null;
+            resolve(null);
+            return;
+          }
+
+          const systemInfo = typeof wx.getSystemInfoSync === 'function' ? wx.getSystemInfoSync() : {};
+          const pixelRatio = Math.max(Number(systemInfo.pixelRatio || 1), 1);
+          const canvasWidth = Math.max(Math.round((systemInfo.windowWidth || 0) * pixelRatio), 1);
+          const canvasHeight = Math.max(Math.round((systemInfo.windowHeight || 0) * pixelRatio), 1);
+          canvas.width = canvasWidth;
+          canvas.height = canvasHeight;
+
+          const sessionPoints = this.getSessionPoints();
+          this.rendererSessionPoints = sessionPoints;
+          const renderer = createSceneRenderer({
+            canvas,
+            points: sessionPoints
+          });
+
+          this.renderer = renderer;
+          this.rendererInitPromise = null;
+
+          if (!renderer?.supported) {
+            this.applyRendererTickResult({
+              supported: false,
+              ready: false,
+              statusText: renderer?.reason || '当前设备不支持 WebGL 渲染'
+            });
+            resolve(renderer);
+            return;
+          }
+
+          this.syncRendererWithSession();
+          resolve(renderer);
+        });
+      });
+    });
+
+    return this.rendererInitPromise;
+  },
+
+  disposeRenderer() {
+    this.rendererInitToken += 1;
+    this.rendererInitPromise = null;
+    this.rendererSessionPoints = [];
+
+    if (this.renderer) {
+      this.renderer.dispose?.();
+      this.renderer = null;
+    }
+  },
+
+  startMotionTracking() {
+    if (this.data.motionStopFunction || this.motionTrackingPromise) {
+      return this.motionTrackingPromise;
+    }
+
+    const trackingToken = this.motionTrackingToken + 1;
+    this.motionTrackingToken = trackingToken;
+
+    this.motionTrackingPromise = startRendererMotionTracking((payload) => {
+      if (trackingToken !== this.motionTrackingToken) {
+        return;
+      }
+
+      this.motionState = payload || null;
+      if (this.renderer) {
+        this.pushRendererSensors();
+      }
+    })
+      .then((stopMotionTracking) => {
+        if (trackingToken !== this.motionTrackingToken || !this.isPageVisible) {
+          stopMotionTracking?.();
+          return null;
+        }
+
+        this.setData({ motionStopFunction: stopMotionTracking });
+        return stopMotionTracking;
+      })
+      .catch(() => {
+        if (trackingToken !== this.motionTrackingToken) {
+          return null;
+        }
+
+        this.motionState = null;
+        this.pushRendererSensors();
+        return null;
+      })
+      .finally(() => {
+        if (trackingToken === this.motionTrackingToken) {
+          this.motionTrackingPromise = null;
+        }
+      });
+
+    return this.motionTrackingPromise;
+  },
+
+  stopMotionTracking() {
+    this.motionTrackingToken += 1;
+
+    if (this.data.motionStopFunction) {
+      this.data.motionStopFunction();
+      this.setData({ motionStopFunction: null });
+    }
+
+    this.motionTrackingPromise = null;
   },
 
   startCompassTracking() {
@@ -133,6 +463,7 @@ Page({
       const session = getNavigationSession(app) || this.session;
       const heading = session?.segmentHeading ?? getSegmentHeading(session);
       const deviceDirection = Math.round(payload.direction);
+      this.compassHeading = payload.direction;
       const hasHeading = !(heading === null || heading === undefined || Number.isNaN(Number(heading)));
 
       if (!hasHeading) {
@@ -144,18 +475,26 @@ Page({
           directionText: '当前为跨楼层段，请前往下一二维码点',
           motionText: `设备朝向 ${deviceDirection}°`
         });
+        this.updateLaneByRelative(0, true);
+        this.pushRendererSensors();
         return;
       }
 
       const relative = calculateRelativeDirection(payload.direction, heading);
+      const isInFront = Boolean(relative.isInFront);
+      const directionText = isInFront
+        ? (relative.direction || '请沿箭头方向前进')
+        : '目标在身后，请原地转身后再前进';
       this.setData({
         deviceDirection,
         targetDirection: Math.round(heading),
         relativeAngle: Math.round(relative.relativeAngle),
         arrowRotation: relative.arrowRotation,
-        directionText: relative.direction || '请沿箭头方向前进',
+        directionText,
         motionText: `设备朝向 ${Math.round(payload.direction)}°`
       });
+      this.updateLaneByRelative(relative.relativeAngle, isInFront);
+      this.pushRendererSensors();
     });
 
     this.setData({ compassStopFunction: stopCompass });
