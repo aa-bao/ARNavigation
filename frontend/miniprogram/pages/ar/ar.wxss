@@ -26,8 +26,8 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 240rpx;
-  height: 32vh;
+  bottom: 248rpx;
+  height: 42vh;
   z-index: 3;
   pointer-events: none;
   overflow: hidden;
@@ -49,45 +49,45 @@
 }
 
 .lane-arrow-0 {
-  width: 148rpx;
-  bottom: 182rpx;
-  opacity: 0.52;
-  transform: translateX(-50%) rotate(90deg) scaleY(0.22);
+  width: 220rpx;
+  bottom: 280rpx;
+  opacity: 0.42;
+  transform: translateX(-50%) rotate(90deg) scaleY(0.62);
 }
 
 .lane-arrow-1 {
-  width: 180rpx;
-  bottom: 148rpx;
-  opacity: 0.62;
-  transform: translateX(-50%) rotate(90deg) scaleY(0.28);
+  width: 260rpx;
+  bottom: 218rpx;
+  opacity: 0.54;
+  transform: translateX(-50%) rotate(90deg) scaleY(0.68);
 }
 
 .lane-arrow-2 {
-  width: 220rpx;
-  bottom: 112rpx;
-  opacity: 0.72;
-  transform: translateX(-50%) rotate(90deg) scaleY(0.35);
+  width: 304rpx;
+  bottom: 162rpx;
+  opacity: 0.68;
+  transform: translateX(-50%) rotate(90deg) scaleY(0.76);
 }
 
 .lane-arrow-3 {
-  width: 266rpx;
-  bottom: 76rpx;
+  width: 350rpx;
+  bottom: 106rpx;
   opacity: 0.82;
-  transform: translateX(-50%) rotate(90deg) scaleY(0.42);
+  transform: translateX(-50%) rotate(90deg) scaleY(0.84);
 }
 
 .lane-arrow-4 {
-  width: 316rpx;
-  bottom: 40rpx;
-  opacity: 0.9;
-  transform: translateX(-50%) rotate(90deg) scaleY(0.5);
+  width: 398rpx;
+  bottom: 54rpx;
+  opacity: 0.92;
+  transform: translateX(-50%) rotate(90deg) scaleY(0.92);
 }
 
 .lane-arrow-5 {
-  width: 372rpx;
+  width: 452rpx;
   bottom: 0rpx;
   opacity: 1;
-  transform: translateX(-50%) rotate(90deg) scaleY(0.58);
+  transform: translateX(-50%) rotate(90deg) scaleY(1);
 }
 
 .arrow-caption {

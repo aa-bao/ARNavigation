@@ -1,4 +1,4 @@
-﻿import { getNodeByCode, getNavigationSegment } from '../../services/navigation-api.js';
+import { getNodeByCode, getNavigationSegment } from '../../services/navigation-api.js';
 import {
   getNavigationSession,
   setNavigationSession,
@@ -18,7 +18,6 @@ const { createSceneRenderer } = require('../../renderers/ar-scene/index.js');
 const { startMotionTracking: startRendererMotionTracking } = require('../../renderers/ar-scene/motion.js');
 
 const app = getApp();
-const FORCE_IMAGE_AR = true;
 
 const buildCurrentNodeFromScan = (scanTarget, apiNode = null) => {
   if (apiNode) {
@@ -49,7 +48,8 @@ Page({
     arrivedAtTarget: false,
     rendererSupported: false,
     rendererReady: false,
-    rendererStatusText: '图像AR引导模式（稳定版）',
+    rendererCameraReady: false,
+    rendererStatusText: '正在初始化 AR 引擎',
     motionText: '等待方向同步',
     promptText: 'AR 仅使用最近一次扫码点作为局部锚点。',
     directionText: '请沿箭头方向前进',
@@ -61,7 +61,6 @@ Page({
     laneRotateDeg: 0,
     laneVisible: true,
     needTurnAround: false,
-    laneFrames: [0, 1, 2, 3, 4, 5],
     compassStopFunction: null,
     motionStopFunction: null
   },
@@ -83,36 +82,28 @@ Page({
 
   onReady() {
     this.isPageReady = true;
-    if (!FORCE_IMAGE_AR) {
-      this.initializeRenderer();
-    }
+    this.initializeRenderer();
   },
 
   onShow() {
     this.isPageVisible = true;
     this.applySession(getNavigationSession(app));
     this.startCompassTracking();
-    if (!FORCE_IMAGE_AR) {
-      this.startMotionTracking();
-      this.initializeRenderer();
-    }
+    this.startMotionTracking();
+    this.initializeRenderer();
   },
 
   onHide() {
     this.stopCompassTracking();
-    if (!FORCE_IMAGE_AR) {
-      this.stopMotionTracking();
-      this.disposeRenderer();
-    }
+    this.stopMotionTracking();
+    this.disposeRenderer();
     this.isPageVisible = false;
   },
 
   onUnload() {
     this.stopCompassTracking();
-    if (!FORCE_IMAGE_AR) {
-      this.stopMotionTracking();
-      this.disposeRenderer();
-    }
+    this.stopMotionTracking();
+    this.disposeRenderer();
     this.isPageVisible = false;
   },
 
@@ -156,6 +147,7 @@ Page({
         : `请沿相机画面中的箭头前往 ${session.segmentEndNode?.nodeName || '下一二维码点'}，到达后重新扫码。`,
       rendererSupported: this.data.rendererSupported,
       rendererReady: this.data.rendererReady,
+      rendererCameraReady: this.data.rendererCameraReady,
       rendererStatusText: this.data.rendererStatusText
     });
 
@@ -211,9 +203,6 @@ Page({
   },
 
   syncRendererWithSession() {
-    if (FORCE_IMAGE_AR) {
-      return;
-    }
     if (!this.renderer) {
       return;
     }
@@ -230,9 +219,6 @@ Page({
   },
 
   pushRendererSensors() {
-    if (FORCE_IMAGE_AR) {
-      return;
-    }
     if (!this.renderer) {
       return;
     }
@@ -255,12 +241,14 @@ Page({
     const nextData = {
       rendererSupported: Boolean(tickResult.supported),
       rendererReady: Boolean(tickResult.ready),
+      rendererCameraReady: Boolean(tickResult.cameraReady),
       rendererStatusText: tickResult.statusText || this.data.rendererStatusText
     };
 
     if (
       nextData.rendererSupported !== this.data.rendererSupported
       || nextData.rendererReady !== this.data.rendererReady
+      || nextData.rendererCameraReady !== this.data.rendererCameraReady
       || nextData.rendererStatusText !== this.data.rendererStatusText
     ) {
       this.setData(nextData);
@@ -268,20 +256,13 @@ Page({
   },
 
   tickRenderer() {
-    if (FORCE_IMAGE_AR) {
-      return {
-        supported: false,
-        ready: false,
-        statusText: '图像AR引导模式（稳定版）'
-      };
-    }
-
     const renderer = this.renderer;
 
     if (!renderer) {
       return {
         supported: false,
         ready: false,
+        cameraReady: false,
         statusText: 'AR 渲染器未初始化'
       };
     }
@@ -290,30 +271,24 @@ Page({
       return {
         supported: false,
         ready: false,
+        cameraReady: false,
         statusText: renderer.reason || '图像 AR 引导已启用（3D引擎不可用）'
       };
     }
 
     const tickResult = typeof renderer.tick === 'function' ? renderer.tick() : null;
     const anchorLocked = Boolean(tickResult?.anchorLocked);
+    const cameraReady = Boolean(tickResult?.cameraReady);
 
     return {
       supported: true,
-      ready: anchorLocked,
+      ready: cameraReady && anchorLocked,
+      cameraReady,
       statusText: tickResult?.hintText || (this.session?.isFinalSegment ? '已到达最终目标' : '正在识别地面平面...')
     };
   },
 
   initializeRenderer() {
-    if (FORCE_IMAGE_AR) {
-      this.applyRendererTickResult({
-        supported: false,
-        ready: false,
-        statusText: '图像AR引导模式（稳定版）'
-      });
-      return null;
-    }
-
     if (!this.isPageReady || !this.isPageVisible || this.rendererInitPromise) {
       return this.rendererInitPromise;
     }

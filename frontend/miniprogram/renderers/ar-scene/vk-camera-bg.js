@@ -1,4 +1,4 @@
-﻿let renderer = null;
+let renderer = null;
 let positionBuffer = null;
 let texBuffer = null;
 
@@ -148,25 +148,33 @@ const renderRgba = (gl, frame, textures) => {
 
 const renderGL = (frame) => {
   if (!renderer || !frame) {
-    return;
+    return false;
   }
 
   const gl = renderer.getContext();
   const currentProgram = gl.getParameter(gl.CURRENT_PROGRAM);
   const currentTexture = gl.getParameter(gl.ACTIVE_TEXTURE);
+  let rendered = false;
 
-  const yuv = frame.getCameraTexture(gl, 'yuv');
-  if (yuv && yuv.yTexture && yuv.uvTexture) {
-    renderYuv(gl, frame, yuv);
-  } else {
-    const rgba = frame.getCameraTexture(gl, 'rgba');
-    if (rgba && rgba.texture) {
-      renderRgba(gl, frame, rgba);
+  try {
+    const yuv = frame.getCameraTexture(gl, 'yuv');
+    if (yuv && yuv.yTexture && yuv.uvTexture) {
+      renderYuv(gl, frame, yuv);
+      rendered = true;
+    } else {
+      const rgba = frame.getCameraTexture(gl, 'rgba');
+      if (rgba && rgba.texture) {
+        renderRgba(gl, frame, rgba);
+        rendered = true;
+      }
     }
+  } catch (error) {
+    rendered = false;
   }
 
   gl.useProgram(currentProgram);
   gl.activeTexture(currentTexture);
+  return rendered;
 };
 
 const dispose = () => {

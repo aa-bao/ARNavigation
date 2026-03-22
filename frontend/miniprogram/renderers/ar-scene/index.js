@@ -1,4 +1,4 @@
-﻿const { createGuidanceEngine } = require('./guidance-engine.js');
+const { createGuidanceEngine } = require('./guidance-engine.js');
 const vkCameraBg = require('./vk-camera-bg.js');
 
 let threeModule = null;
@@ -53,7 +53,11 @@ const createFallbackRenderer = (engine, reason = 'AR 渲染暂不可用') => ({
     engine.updateSensors(sensorLike);
   },
   tick() {
-    return engine.tick();
+    return {
+      ...engine.tick(),
+      cameraReady: false,
+      anchorLocked: false
+    };
   },
   dispose() {
     engine.reset();
@@ -96,15 +100,53 @@ const createSceneRenderer = ({ canvas, points = [] }) => {
   scene.add(anchorRoot);
 
   const arrowMeshes = [];
+  const createArrowGeometry = (scale = 1) => {
+    const shape = new THREE.Shape();
+    shape.moveTo(-0.48 * scale, -0.13 * scale);
+    shape.lineTo(0.2 * scale, -0.13 * scale);
+    shape.lineTo(0.2 * scale, -0.25 * scale);
+    shape.lineTo(0.58 * scale, 0);
+    shape.lineTo(0.2 * scale, 0.25 * scale);
+    shape.lineTo(0.2 * scale, 0.13 * scale);
+    shape.lineTo(-0.48 * scale, 0.13 * scale);
+    shape.closePath();
+    const geometry = new THREE.ShapeGeometry(shape);
+    geometry.rotateX(-Math.PI / 2);
+    geometry.rotateZ(-Math.PI / 2);
+    return geometry;
+  };
+
   for (let index = 0; index < 6; index += 1) {
-    const geo = new THREE.ConeGeometry(0.16 + index * 0.03, 0.14 + index * 0.02, 10);
-    geo.rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x2ea7ff, emissive: 0x134a99, emissiveIntensity: 0.35 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(0, 0.02, -(0.8 + index * 0.55));
-    mesh.scale.set(1.35, 0.45, 1.05);
-    anchorRoot.add(mesh);
-    arrowMeshes.push(mesh);
+    const scale = 0.62 + index * 0.08;
+    const shellGeometry = createArrowGeometry(scale);
+    const shellMaterial = new THREE.MeshStandardMaterial({
+      color: 0x2ea7ff,
+      emissive: 0x0b3d8a,
+      emissiveIntensity: 0.42,
+      roughness: 0.42,
+      metalness: 0.08,
+      side: THREE.DoubleSide,
+      transparent: true
+    });
+    const shellMesh = new THREE.Mesh(shellGeometry, shellMaterial);
+    shellMesh.position.set(0, 0.02, -(0.82 + index * 0.58));
+
+    const innerGeometry = createArrowGeometry(scale * 0.72);
+    const innerMaterial = new THREE.MeshStandardMaterial({
+      color: 0xf8fbff,
+      emissive: 0x1b64cf,
+      emissiveIntensity: 0.2,
+      roughness: 0.5,
+      metalness: 0.02,
+      side: THREE.DoubleSide,
+      transparent: true
+    });
+    const innerMesh = new THREE.Mesh(innerGeometry, innerMaterial);
+    innerMesh.position.set(0, 0.024, -(0.82 + index * 0.58));
+
+    anchorRoot.add(shellMesh);
+    anchorRoot.add(innerMesh);
+    arrowMeshes.push({ shellMesh, innerMesh });
   }
 
   const session = wx.createVKSession({
@@ -118,6 +160,8 @@ const createSceneRenderer = ({ canvas, points = [] }) => {
   let disposed = false;
   let started = false;
   let anchorLocked = false;
+  let cameraReady = false;
+  let cameraDropStreak = 0;
   let lastTick = { status: 'READY', confidence: 0, hintText: '等待平面检测', headingErrorDeg: null };
 
   const syncViewport = () => {
@@ -135,16 +179,36 @@ const createSceneRenderer = ({ canvas, points = [] }) => {
 
     anchorRoot.rotation.set(0, yaw, 0);
 
-    arrowMeshes.forEach((mesh, idx) => {
-      mesh.visible = anchorLocked;
+    arrowMeshes.forEach((item, idx) => {
+      const shell = item.shellMesh;
+      const inner = item.innerMesh;
+      shell.visible = anchorLocked && cameraReady;
+      inner.visible = anchorLocked && cameraReady;
       const alpha = 0.45 + confidence * 0.55;
-      mesh.material.opacity = alpha;
-      mesh.material.transparent = alpha < 0.999;
-      mesh.material.color.setHex(payload?.status === 'RECALIBRATE_REQUIRED' ? 0xef4444 : 0x2ea7ff);
-      mesh.material.emissive.setHex(payload?.status === 'RECALIBRATE_REQUIRED' ? 0x7f1d1d : 0x134a99);
+      shell.material.opacity = alpha;
+      inner.material.opacity = Math.min(alpha + 0.12, 1);
+      shell.material.transparent = alpha < 0.999;
+      inner.material.transparent = inner.material.opacity < 0.999;
+      shell.material.color.setHex(payload?.status === 'RECALIBRATE_REQUIRED' ? 0xef4444 : 0x2ea7ff);
+      shell.material.emissive.setHex(payload?.status === 'RECALIBRATE_REQUIRED' ? 0x7f1d1d : 0x0b3d8a);
       const s = 0.9 + idx * 0.07;
-      mesh.scale.set(1.35 * s, 0.45 * s, 1.05 * s);
+      shell.scale.set(1.24 * s, 1, 1.08 * s);
+      inner.scale.set(1.24 * s, 1, 1.08 * s);
     });
+  };
+
+  const getUpY = (transform) => {
+    if (!transform || typeof transform.length !== 'number' || transform.length < 16) {
+      return -1;
+    }
+    const ux = Number(transform[4] || 0);
+    const uy = Number(transform[5] || 0);
+    const uz = Number(transform[6] || 0);
+    const len = Math.sqrt((ux * ux) + (uy * uy) + (uz * uz));
+    if (len < 1e-6) {
+      return -1;
+    }
+    return Math.abs(uy / len);
   };
 
   const tryLockAnchor = () => {
@@ -152,9 +216,27 @@ const createSceneRenderer = ({ canvas, points = [] }) => {
       return;
     }
 
-    const hit = session.hitTest(0.5, 0.8, true);
-    if (hit && hit.length && hit[0].transform) {
-      anchorRoot.matrix.fromArray(hit[0].transform);
+    const hit = session.hitTest(0.5, 0.88, true);
+    if (!hit || !hit.length) {
+      return;
+    }
+
+    let selected = null;
+    for (let index = 0; index < hit.length; index += 1) {
+      const candidate = hit[index];
+      const upY = getUpY(candidate?.transform);
+      if (upY > 0.72) {
+        selected = candidate;
+        break;
+      }
+      if (!selected) {
+        selected = candidate;
+      }
+    }
+
+    if (selected && selected.transform) {
+      anchorRoot.matrix.fromArray(selected.transform);
+      anchorRoot.matrixWorldNeedsUpdate = true;
       anchorLocked = true;
     }
   };
@@ -169,7 +251,16 @@ const createSceneRenderer = ({ canvas, points = [] }) => {
     const frame = session.getVKFrame(canvas.width, canvas.height);
     if (frame?.camera) {
       tryLockAnchor();
-      vkCameraBg.renderGL(frame);
+      const bgRendered = vkCameraBg.renderGL(frame);
+      if (bgRendered) {
+        cameraReady = true;
+        cameraDropStreak = 0;
+      } else {
+        cameraDropStreak += 1;
+        if (cameraDropStreak >= 6) {
+          cameraReady = false;
+        }
+      }
 
       camera.matrixAutoUpdate = false;
       camera.matrixWorldInverse.fromArray(frame.camera.viewMatrix);
@@ -180,8 +271,10 @@ const createSceneRenderer = ({ canvas, points = [] }) => {
 
     const payload = engine.tick();
     applyPoseToArrows(payload);
-    renderer.autoClearColor = false;
-    renderer.render(scene, camera);
+    if (cameraReady) {
+      renderer.autoClearColor = false;
+      renderer.render(scene, camera);
+    }
     lastTick = payload;
 
     session.requestAnimationFrame(renderFrame);
@@ -234,9 +327,20 @@ const createSceneRenderer = ({ canvas, points = [] }) => {
         return {
           status: 'READY',
           confidence: 0,
-          hintText: '正在识别地面平面...',
+          hintText: '正在初始化相机追踪...',
           headingErrorDeg: null,
-          anchorLocked: false
+          anchorLocked: false,
+          cameraReady: false
+        };
+      }
+      if (!cameraReady) {
+        return {
+          status: 'READY',
+          confidence: 0,
+          hintText: '等待相机画面恢复...',
+          headingErrorDeg: null,
+          anchorLocked: false,
+          cameraReady: false
         };
       }
       if (!anchorLocked) {
@@ -245,13 +349,15 @@ const createSceneRenderer = ({ canvas, points = [] }) => {
           confidence: 0,
           hintText: '请将手机对准地面完成锚定',
           headingErrorDeg: null,
-          anchorLocked: false
+          anchorLocked: false,
+          cameraReady: true
         };
       }
       return {
         ...lastTick,
         hintText: lastTick?.hintText || 'AR 地面锚定已完成',
-        anchorLocked: true
+        anchorLocked: true,
+        cameraReady: true
       };
     },
     dispose() {
@@ -263,9 +369,11 @@ const createSceneRenderer = ({ canvas, points = [] }) => {
         session.stop();
       } catch (e) {}
       engine.reset();
-      arrowMeshes.forEach((mesh) => {
-        mesh.geometry.dispose();
-        mesh.material.dispose();
+      arrowMeshes.forEach((item) => {
+        item.shellMesh.geometry.dispose();
+        item.shellMesh.material.dispose();
+        item.innerMesh.geometry.dispose();
+        item.innerMesh.material.dispose();
       });
       vkCameraBg.dispose();
       renderer.dispose();
