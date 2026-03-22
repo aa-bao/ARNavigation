@@ -42,6 +42,7 @@ Page({
   data: {
     loading: true,
     errorText: '',
+    cameraErrorText: '',
     destination: null,
     currentNode: null,
     nextNode: null,
@@ -90,6 +91,7 @@ Page({
 
   onShow() {
     this.isPageVisible = true;
+    this.ensureCameraPermission();
     this.applySession(getNavigationSession(app));
     this.startCompassTracking();
     if (!FORCE_IMAGE_AR) {
@@ -127,6 +129,49 @@ Page({
     }
 
     this.applySession(session);
+  },
+
+  ensureCameraPermission() {
+    wx.getSetting({
+      success: (res) => {
+        const granted = res?.authSetting?.['scope.camera'] === true;
+        if (granted) {
+          this.setData({ cameraErrorText: '' });
+          return;
+        }
+
+        wx.authorize({
+          scope: 'scope.camera',
+          success: () => {
+            this.setData({ cameraErrorText: '' });
+          },
+          fail: () => {
+            this.setData({
+              cameraErrorText: '相机权限未开启，请到小程序设置中允许相机访问。'
+            });
+          }
+        });
+      },
+      fail: () => {
+        this.setData({
+          cameraErrorText: '无法读取相机权限状态。'
+        });
+      }
+    });
+  },
+
+  handleCameraInitDone() {
+    if (this.data.cameraErrorText) {
+      this.setData({ cameraErrorText: '' });
+    }
+  },
+
+  handleCameraError(event) {
+    const detail = event?.detail || {};
+    const errMsg = detail.errMsg || detail.msg || '相机初始化失败';
+    this.setData({
+      cameraErrorText: `相机错误：${errMsg}`
+    });
   },
 
   applySession(session) {

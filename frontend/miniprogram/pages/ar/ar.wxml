@@ -1,5 +1,11 @@
 <view class="ar-page">
-  <camera class="camera-layer" device-position="back" flash="off"></camera>
+  <camera
+    class="camera-layer"
+    device-position="back"
+    flash="off"
+    bindinitdone="handleCameraInitDone"
+    binderror="handleCameraError"
+  ></camera>
   <canvas id="arWebglCanvas" type="webgl" class="ar-webgl-canvas" style="opacity: 0;"></canvas>
 
   <view class="lane-overlay" wx:if="{{!arrivedAtTarget && laneVisible && !rendererReady}}">
@@ -55,6 +61,10 @@
 
     <view class="error-card" wx:if="{{errorText}}">
       <text>{{errorText}}</text>
+    </view>
+
+    <view class="error-card" wx:if="{{cameraErrorText}}">
+      <text>{{cameraErrorText}}</text>
     </view>
   </view>
 </view>
