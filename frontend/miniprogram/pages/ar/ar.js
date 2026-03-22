@@ -18,7 +18,7 @@ const { createSceneRenderer } = require('../../renderers/ar-scene/index.js');
 const { startMotionTracking: startRendererMotionTracking } = require('../../renderers/ar-scene/motion.js');
 
 const app = getApp();
-const DISABLE_WEBGL_PREVIEW = true;
+const FORCE_IMAGE_AR = true;
 
 const buildCurrentNodeFromScan = (scanTarget, apiNode = null) => {
   if (apiNode) {
@@ -49,8 +49,7 @@ Page({
     arrivedAtTarget: false,
     rendererSupported: false,
     rendererReady: false,
-    rendererCameraReady: false,
-    rendererStatusText: '图像 AR 引导模式（当前设备已关闭 3D 预览，避免黑屏）',
+    rendererStatusText: '图像AR引导模式（稳定版）',
     motionText: '等待方向同步',
     promptText: 'AR 仅使用最近一次扫码点作为局部锚点。',
     directionText: '请沿箭头方向前进',
@@ -62,6 +61,7 @@ Page({
     laneRotateDeg: 0,
     laneVisible: true,
     needTurnAround: false,
+    laneFrames: [0, 1, 2, 3, 4, 5],
     compassStopFunction: null,
     motionStopFunction: null
   },
@@ -83,7 +83,7 @@ Page({
 
   onReady() {
     this.isPageReady = true;
-    if (!DISABLE_WEBGL_PREVIEW) {
+    if (!FORCE_IMAGE_AR) {
       this.initializeRenderer();
     }
   },
@@ -92,7 +92,7 @@ Page({
     this.isPageVisible = true;
     this.applySession(getNavigationSession(app));
     this.startCompassTracking();
-    if (!DISABLE_WEBGL_PREVIEW) {
+    if (!FORCE_IMAGE_AR) {
       this.startMotionTracking();
       this.initializeRenderer();
     }
@@ -100,7 +100,7 @@ Page({
 
   onHide() {
     this.stopCompassTracking();
-    if (!DISABLE_WEBGL_PREVIEW) {
+    if (!FORCE_IMAGE_AR) {
       this.stopMotionTracking();
       this.disposeRenderer();
     }
@@ -109,7 +109,7 @@ Page({
 
   onUnload() {
     this.stopCompassTracking();
-    if (!DISABLE_WEBGL_PREVIEW) {
+    if (!FORCE_IMAGE_AR) {
       this.stopMotionTracking();
       this.disposeRenderer();
     }
@@ -156,7 +156,6 @@ Page({
         : `请沿相机画面中的箭头前往 ${session.segmentEndNode?.nodeName || '下一二维码点'}，到达后重新扫码。`,
       rendererSupported: this.data.rendererSupported,
       rendererReady: this.data.rendererReady,
-      rendererCameraReady: this.data.rendererCameraReady,
       rendererStatusText: this.data.rendererStatusText
     });
 
@@ -192,7 +191,6 @@ Page({
     const clampedAngle = Math.max(-90, Math.min(90, angle));
     const laneShiftRpx = Math.max(-140, Math.min(140, (clampedAngle / 90) * 120));
     const laneRotateDeg = Math.max(-32, Math.min(32, clampedAngle * 0.35));
-
     if (
       laneShiftRpx !== this.data.laneShiftRpx
       || laneRotateDeg !== this.data.laneRotateDeg
@@ -213,7 +211,7 @@ Page({
   },
 
   syncRendererWithSession() {
-    if (DISABLE_WEBGL_PREVIEW) {
+    if (FORCE_IMAGE_AR) {
       return;
     }
     if (!this.renderer) {
@@ -221,7 +219,7 @@ Page({
     }
 
     this.rendererSessionPoints = this.getSessionPoints();
-    if (typeof this.renderer.updateSession === 'function') {
+    if (this.renderer.supported && typeof this.renderer.updateSession === 'function') {
       this.renderer.updateSession({
         points: this.rendererSessionPoints,
         anchorHeading: this.session?.anchorHeading ?? null
@@ -232,14 +230,14 @@ Page({
   },
 
   pushRendererSensors() {
-    if (DISABLE_WEBGL_PREVIEW) {
+    if (FORCE_IMAGE_AR) {
       return;
     }
     if (!this.renderer) {
       return;
     }
 
-    if (typeof this.renderer.updateSensors === 'function') {
+    if (this.renderer.supported && typeof this.renderer.updateSensors === 'function') {
       this.renderer.updateSensors({
         compassHeading: this.compassHeading,
         motion: this.motionState
@@ -257,14 +255,12 @@ Page({
     const nextData = {
       rendererSupported: Boolean(tickResult.supported),
       rendererReady: Boolean(tickResult.ready),
-      rendererCameraReady: Boolean(tickResult.cameraReady),
       rendererStatusText: tickResult.statusText || this.data.rendererStatusText
     };
 
     if (
       nextData.rendererSupported !== this.data.rendererSupported
       || nextData.rendererReady !== this.data.rendererReady
-      || nextData.rendererCameraReady !== this.data.rendererCameraReady
       || nextData.rendererStatusText !== this.data.rendererStatusText
     ) {
       this.setData(nextData);
@@ -272,12 +268,11 @@ Page({
   },
 
   tickRenderer() {
-    if (DISABLE_WEBGL_PREVIEW) {
+    if (FORCE_IMAGE_AR) {
       return {
         supported: false,
         ready: false,
-        cameraReady: false,
-        statusText: '图像 AR 引导模式（当前设备已关闭 3D 预览，避免黑屏）'
+        statusText: '图像AR引导模式（稳定版）'
       };
     }
 
@@ -287,7 +282,6 @@ Page({
       return {
         supported: false,
         ready: false,
-        cameraReady: false,
         statusText: 'AR 渲染器未初始化'
       };
     }
@@ -296,30 +290,26 @@ Page({
       return {
         supported: false,
         ready: false,
-        cameraReady: false,
-        statusText: renderer.reason || '图像 AR 引导已启用（3D 引擎不可用）'
+        statusText: renderer.reason || '图像 AR 引导已启用（3D引擎不可用）'
       };
     }
 
     const tickResult = typeof renderer.tick === 'function' ? renderer.tick() : null;
     const anchorLocked = Boolean(tickResult?.anchorLocked);
-    const cameraReady = Boolean(tickResult?.cameraReady);
 
     return {
       supported: true,
-      ready: cameraReady && anchorLocked,
-      cameraReady,
+      ready: anchorLocked,
       statusText: tickResult?.hintText || (this.session?.isFinalSegment ? '已到达最终目标' : '正在识别地面平面...')
     };
   },
 
   initializeRenderer() {
-    if (DISABLE_WEBGL_PREVIEW) {
+    if (FORCE_IMAGE_AR) {
       this.applyRendererTickResult({
         supported: false,
         ready: false,
-        cameraReady: false,
-        statusText: '图像 AR 引导模式（当前设备已关闭 3D 预览，避免黑屏）'
+        statusText: '图像AR引导模式（稳定版）'
       });
       return null;
     }
@@ -354,7 +344,6 @@ Page({
             this.applyRendererTickResult({
               supported: false,
               ready: false,
-              cameraReady: false,
               statusText: 'AR 画布未准备完成'
             });
             this.rendererInitPromise = null;
@@ -383,7 +372,6 @@ Page({
             this.applyRendererTickResult({
               supported: false,
               ready: false,
-              cameraReady: false,
               statusText: renderer?.reason || '当前设备不支持 WebGL 渲染'
             });
             resolve(renderer);
@@ -497,7 +485,6 @@ Page({
       const directionText = isInFront
         ? (relative.direction || '请沿箭头方向前进')
         : '目标在身后，请原地转身后再前进';
-
       this.setData({
         deviceDirection,
         targetDirection: Math.round(heading),
@@ -506,7 +493,6 @@ Page({
         directionText,
         motionText: `设备朝向 ${Math.round(payload.direction)}°`
       });
-
       this.updateLaneByRelative(relative.relativeAngle, isInFront);
       this.pushRendererSensors();
     });

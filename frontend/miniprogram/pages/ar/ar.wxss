@@ -15,31 +15,19 @@
 
 .ar-webgl-canvas {
   position: absolute;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.ar-webgl-canvas-hidden {
-  top: -2000px;
-  left: -2000px;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
-.ar-webgl-canvas-active {
   inset: 0;
   width: 100%;
   height: 100%;
-  opacity: 1;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .lane-overlay {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 248rpx;
-  height: 42vh;
+  bottom: 240rpx;
+  height: 32vh;
   z-index: 3;
   pointer-events: none;
   overflow: hidden;
@@ -61,45 +49,45 @@
 }
 
 .lane-arrow-0 {
-  width: 220rpx;
-  bottom: 280rpx;
-  opacity: 0.42;
-  transform: translateX(-50%) rotate(90deg) scaleY(0.62);
+  width: 148rpx;
+  bottom: 182rpx;
+  opacity: 0.52;
+  transform: translateX(-50%) rotate(90deg) scaleY(0.22);
 }
 
 .lane-arrow-1 {
-  width: 260rpx;
-  bottom: 218rpx;
-  opacity: 0.54;
-  transform: translateX(-50%) rotate(90deg) scaleY(0.68);
+  width: 180rpx;
+  bottom: 148rpx;
+  opacity: 0.62;
+  transform: translateX(-50%) rotate(90deg) scaleY(0.28);
 }
 
 .lane-arrow-2 {
-  width: 304rpx;
-  bottom: 162rpx;
-  opacity: 0.68;
-  transform: translateX(-50%) rotate(90deg) scaleY(0.76);
+  width: 220rpx;
+  bottom: 112rpx;
+  opacity: 0.72;
+  transform: translateX(-50%) rotate(90deg) scaleY(0.35);
 }
 
 .lane-arrow-3 {
-  width: 350rpx;
-  bottom: 106rpx;
+  width: 266rpx;
+  bottom: 76rpx;
   opacity: 0.82;
-  transform: translateX(-50%) rotate(90deg) scaleY(0.84);
+  transform: translateX(-50%) rotate(90deg) scaleY(0.42);
 }
 
 .lane-arrow-4 {
-  width: 398rpx;
-  bottom: 54rpx;
-  opacity: 0.92;
-  transform: translateX(-50%) rotate(90deg) scaleY(0.92);
+  width: 316rpx;
+  bottom: 40rpx;
+  opacity: 0.9;
+  transform: translateX(-50%) rotate(90deg) scaleY(0.5);
 }
 
 .lane-arrow-5 {
-  width: 452rpx;
+  width: 372rpx;
   bottom: 0rpx;
   opacity: 1;
-  transform: translateX(-50%) rotate(90deg) scaleY(1);
+  transform: translateX(-50%) rotate(90deg) scaleY(0.58);
 }
 
 .arrow-caption {
