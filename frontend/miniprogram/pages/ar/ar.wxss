@@ -15,11 +15,23 @@
 
 .ar-webgl-canvas {
   position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.ar-webgl-canvas-hidden {
+  top: -2000px;
+  left: -2000px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.ar-webgl-canvas-active {
   inset: 0;
   width: 100%;
   height: 100%;
-  z-index: 2;
-  pointer-events: none;
+  opacity: 1;
 }
 
 .lane-overlay {

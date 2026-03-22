@@ -1,21 +1,26 @@
 <view class="ar-page">
   <camera class="camera-layer" device-position="back" flash="off"></camera>
-  <canvas id="arWebglCanvas" type="webgl" class="ar-webgl-canvas" style="opacity: {{rendererCameraReady ? 1 : 0}};"></canvas>
+  <canvas
+    id="arWebglCanvas"
+    type="webgl"
+    class="ar-webgl-canvas {{rendererCameraReady ? 'ar-webgl-canvas-active' : 'ar-webgl-canvas-hidden'}}"
+  ></canvas>
 
   <view class="lane-overlay" wx:if="{{!arrivedAtTarget && laneVisible && !rendererReady}}">
     <view class="lane-track" style="transform: translateX({{laneShiftRpx}}rpx) rotate({{laneRotateDeg}}deg);">
-      <image class="lane-arrow lane-arrow-0" src="/images/ar-lane-arrow-v4.png?v=20260322" mode="aspectFit"></image>
-      <image class="lane-arrow lane-arrow-1" src="/images/ar-lane-arrow-v4.png?v=20260322" mode="aspectFit"></image>
-      <image class="lane-arrow lane-arrow-2" src="/images/ar-lane-arrow-v4.png?v=20260322" mode="aspectFit"></image>
-      <image class="lane-arrow lane-arrow-3" src="/images/ar-lane-arrow-v4.png?v=20260322" mode="aspectFit"></image>
-      <image class="lane-arrow lane-arrow-4" src="/images/ar-lane-arrow-v4.png?v=20260322" mode="aspectFit"></image>
-      <image class="lane-arrow lane-arrow-5" src="/images/ar-lane-arrow-v4.png?v=20260322" mode="aspectFit"></image>
+      <image class="lane-arrow lane-arrow-0" src="/images/ar-lane-arrow-v4.png" mode="aspectFit"></image>
+      <image class="lane-arrow lane-arrow-1" src="/images/ar-lane-arrow-v4.png" mode="aspectFit"></image>
+      <image class="lane-arrow lane-arrow-2" src="/images/ar-lane-arrow-v4.png" mode="aspectFit"></image>
+      <image class="lane-arrow lane-arrow-3" src="/images/ar-lane-arrow-v4.png" mode="aspectFit"></image>
+      <image class="lane-arrow lane-arrow-4" src="/images/ar-lane-arrow-v4.png" mode="aspectFit"></image>
+      <image class="lane-arrow lane-arrow-5" src="/images/ar-lane-arrow-v4.png" mode="aspectFit"></image>
     </view>
     <view class="arrow-caption">
       <text class="arrow-direction">{{directionText}}</text>
       <text class="arrow-angle">相对角度 {{relativeAngle}}°</text>
     </view>
   </view>
+
   <view class="turn-around-tip" wx:if="{{!arrivedAtTarget && needTurnAround}}">
     <text>目标在身后，请转身</text>
   </view>
@@ -61,4 +66,3 @@
     </view>
   </view>
 </view>
-

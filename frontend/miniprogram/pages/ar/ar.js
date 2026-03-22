@@ -183,6 +183,7 @@ Page({
     const clampedAngle = Math.max(-90, Math.min(90, angle));
     const laneShiftRpx = Math.max(-140, Math.min(140, (clampedAngle / 90) * 120));
     const laneRotateDeg = Math.max(-32, Math.min(32, clampedAngle * 0.35));
+
     if (
       laneShiftRpx !== this.data.laneShiftRpx
       || laneRotateDeg !== this.data.laneRotateDeg
@@ -208,7 +209,7 @@ Page({
     }
 
     this.rendererSessionPoints = this.getSessionPoints();
-    if (this.renderer.supported && typeof this.renderer.updateSession === 'function') {
+    if (typeof this.renderer.updateSession === 'function') {
       this.renderer.updateSession({
         points: this.rendererSessionPoints,
         anchorHeading: this.session?.anchorHeading ?? null
@@ -223,7 +224,7 @@ Page({
       return;
     }
 
-    if (this.renderer.supported && typeof this.renderer.updateSensors === 'function') {
+    if (typeof this.renderer.updateSensors === 'function') {
       this.renderer.updateSensors({
         compassHeading: this.compassHeading,
         motion: this.motionState
@@ -272,7 +273,7 @@ Page({
         supported: false,
         ready: false,
         cameraReady: false,
-        statusText: renderer.reason || '图像 AR 引导已启用（3D引擎不可用）'
+        statusText: renderer.reason || '图像 AR 引导已启用（3D 引擎不可用）'
       };
     }
 
@@ -319,6 +320,7 @@ Page({
             this.applyRendererTickResult({
               supported: false,
               ready: false,
+              cameraReady: false,
               statusText: 'AR 画布未准备完成'
             });
             this.rendererInitPromise = null;
@@ -347,6 +349,7 @@ Page({
             this.applyRendererTickResult({
               supported: false,
               ready: false,
+              cameraReady: false,
               statusText: renderer?.reason || '当前设备不支持 WebGL 渲染'
             });
             resolve(renderer);
@@ -460,6 +463,7 @@ Page({
       const directionText = isInFront
         ? (relative.direction || '请沿箭头方向前进')
         : '目标在身后，请原地转身后再前进';
+
       this.setData({
         deviceDirection,
         targetDirection: Math.round(heading),
@@ -468,6 +472,7 @@ Page({
         directionText,
         motionText: `设备朝向 ${Math.round(payload.direction)}°`
       });
+
       this.updateLaneByRelative(relative.relativeAngle, isInFront);
       this.pushRendererSensors();
     });
