@@ -18,6 +18,7 @@ const { createSceneRenderer } = require('../../renderers/ar-scene/index.js');
 const { startMotionTracking: startRendererMotionTracking } = require('../../renderers/ar-scene/motion.js');
 
 const app = getApp();
+const DISABLE_WEBGL_PREVIEW = true;
 
 const buildCurrentNodeFromScan = (scanTarget, apiNode = null) => {
   if (apiNode) {
@@ -49,7 +50,7 @@ Page({
     rendererSupported: false,
     rendererReady: false,
     rendererCameraReady: false,
-    rendererStatusText: '正在初始化 AR 引擎',
+    rendererStatusText: '图像 AR 引导模式（当前设备已关闭 3D 预览，避免黑屏）',
     motionText: '等待方向同步',
     promptText: 'AR 仅使用最近一次扫码点作为局部锚点。',
     directionText: '请沿箭头方向前进',
@@ -82,28 +83,36 @@ Page({
 
   onReady() {
     this.isPageReady = true;
-    this.initializeRenderer();
+    if (!DISABLE_WEBGL_PREVIEW) {
+      this.initializeRenderer();
+    }
   },
 
   onShow() {
     this.isPageVisible = true;
     this.applySession(getNavigationSession(app));
     this.startCompassTracking();
-    this.startMotionTracking();
-    this.initializeRenderer();
+    if (!DISABLE_WEBGL_PREVIEW) {
+      this.startMotionTracking();
+      this.initializeRenderer();
+    }
   },
 
   onHide() {
     this.stopCompassTracking();
-    this.stopMotionTracking();
-    this.disposeRenderer();
+    if (!DISABLE_WEBGL_PREVIEW) {
+      this.stopMotionTracking();
+      this.disposeRenderer();
+    }
     this.isPageVisible = false;
   },
 
   onUnload() {
     this.stopCompassTracking();
-    this.stopMotionTracking();
-    this.disposeRenderer();
+    if (!DISABLE_WEBGL_PREVIEW) {
+      this.stopMotionTracking();
+      this.disposeRenderer();
+    }
     this.isPageVisible = false;
   },
 
@@ -204,6 +213,9 @@ Page({
   },
 
   syncRendererWithSession() {
+    if (DISABLE_WEBGL_PREVIEW) {
+      return;
+    }
     if (!this.renderer) {
       return;
     }
@@ -220,6 +232,9 @@ Page({
   },
 
   pushRendererSensors() {
+    if (DISABLE_WEBGL_PREVIEW) {
+      return;
+    }
     if (!this.renderer) {
       return;
     }
@@ -257,6 +272,15 @@ Page({
   },
 
   tickRenderer() {
+    if (DISABLE_WEBGL_PREVIEW) {
+      return {
+        supported: false,
+        ready: false,
+        cameraReady: false,
+        statusText: '图像 AR 引导模式（当前设备已关闭 3D 预览，避免黑屏）'
+      };
+    }
+
     const renderer = this.renderer;
 
     if (!renderer) {
@@ -290,6 +314,16 @@ Page({
   },
 
   initializeRenderer() {
+    if (DISABLE_WEBGL_PREVIEW) {
+      this.applyRendererTickResult({
+        supported: false,
+        ready: false,
+        cameraReady: false,
+        statusText: '图像 AR 引导模式（当前设备已关闭 3D 预览，避免黑屏）'
+      });
+      return null;
+    }
+
     if (!this.isPageReady || !this.isPageVisible || this.rendererInitPromise) {
       return this.rendererInitPromise;
     }

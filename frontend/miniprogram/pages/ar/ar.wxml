@@ -3,7 +3,7 @@
   <canvas
     id="arWebglCanvas"
     type="webgl"
-    class="ar-webgl-canvas {{rendererCameraReady ? 'ar-webgl-canvas-active' : 'ar-webgl-canvas-hidden'}}"
+    class="ar-webgl-canvas ar-webgl-canvas-hidden"
   ></canvas>
 
   <view class="lane-overlay" wx:if="{{!arrivedAtTarget && laneVisible && !rendererReady}}">
